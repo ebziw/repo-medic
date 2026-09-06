@@ -8,6 +8,40 @@ metadata:
 
 # repo-medic — meta router
 
+## 裸调用 — 显示 help
+
+不带参数调用（`/repo-medic`）时，打印 help 块后停止，不要猜测子 skill。**用当前对话语言打印**（用户在说中文用下面的中文块，说英文用英文块）：
+
+```
+repo-medic — 代码维护 skill 工具包
+
+  /py-improve     Python 代码（重构、去重、静默吞错、日志、CR）
+  /doc-reorg      目录 + 文档 + 文件一次性整理
+  /db-tweak       PostgreSQL（慢查询、索引、DDL、9 铁律）
+  /vue-improve    Vue 3 + TS + Vite + Pinia 前端
+  /config-base    工具链 bootstrap（检测 + 安装依赖）
+  /evolve         蒸馏项目踩坑为可复用经验
+
+用法：/repo-medic <需求>   → 路由到匹配的 sub-skill
+     /<sub-skill> <需求>  → 直接调用某个 sub-skill
+```
+
+```
+repo-medic — code maintenance skill toolkit
+
+  /py-improve     Python code (refactor, dedup, silent errors, logging, CR)
+  /doc-reorg      Directory + document + file reorganization
+  /db-tweak       PostgreSQL (slow queries, indexes, DDL, 9 iron laws)
+  /vue-improve    Vue 3 + TS + Vite + Pinia frontend
+  /config-base    Toolchain bootstrap (detect + install dependencies)
+  /evolve         Distill project pitfalls into reusable lessons
+
+Usage: /repo-medic <request>   → routes to the matching sub-skill
+       /<sub-skill> <request>  → invoke a sub-skill directly
+```
+
+## 路由
+
 **直接调对应 sub-skill**（推荐，零开销）：
 
 | Sub-skill | 范围 |
