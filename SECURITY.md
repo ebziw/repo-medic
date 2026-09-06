@@ -12,8 +12,8 @@
 
 Instead, please report them via one of these channels:
 
-1. **GitHub Security Advisories** (preferred): <https://github.com/ebziw/repo-medic/security/advisories/new>
-2. **Private issue with `security` label**: <https://github.com/ebziw/repo-medic/issues/new> (mark as private when possible)
+1. **GitHub Security Advisories** (preferred): <https://github.com/liyong-labs/repo-medic/security/advisories/new>
+2. **Private issue with `security` label**: <https://github.com/liyong-labs/repo-medic/issues/new> (mark as private when possible)
 
 Please include:
 

@@ -107,4 +107,4 @@ The output is a candidate list (including source commit/work-note links + freque
 
 ## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0.
+github.com/liyong-labs/repo-medic — Apache-2.0.

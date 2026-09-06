@@ -57,15 +57,15 @@ Each sub-skill ships with:
 In Claude Code:
 
 ```
-/plugin marketplace add ebziw/repo-medic
+/plugin marketplace add liyong-labs/repo-medic
 ```
 
-Then select `Browse and install plugins` → `ebziw-repo-medic` → install.
+Then select `Browse and install plugins` → `liyong-labs-repo-medic` → install.
 
 ### Option 2: vercel-labs Skills CLI (multi-agent)
 
 ```bash
-npx skills add ebziw/repo-medic
+npx skills add liyong-labs/repo-medic
 ```
 
 Supports 73+ agents (Claude Code, Codex, Cursor, OpenCode, etc.). See <https://github.com/vercel-labs/skills>.
@@ -74,7 +74,7 @@ Supports 73+ agents (Claude Code, Codex, Cursor, OpenCode, etc.). See <https://g
 
 ```bash
 # Install all sub-skills
-git clone https://github.com/ebziw/repo-medic.git
+git clone https://github.com/liyong-labs/repo-medic.git
 cd repo-medic
 for d in repo-medic py-improve doc-reorg db-tweak vue-improve config-base evolve; do
   ln -s "$(pwd)/$d" ~/.claude/skills/$d
@@ -210,7 +210,7 @@ Please also follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Security
 
-Report vulnerabilities via [GitHub Security Advisories](https://github.com/ebziw/repo-medic/security/advisories/new). See [SECURITY.md](SECURITY.md).
+Report vulnerabilities via [GitHub Security Advisories](https://github.com/liyong-labs/repo-medic/security/advisories/new). See [SECURITY.md](SECURITY.md).
 
 ## License
 
@@ -218,9 +218,9 @@ Apache-2.0 — see [LICENSE](LICENSE).
 
 ## Maintainer
 
-- github.com/ebziw
-- Issues: <https://github.com/ebziw/repo-medic/issues>
-- Discussions: <https://github.com/ebziw/repo-medic/discussions>
+- github.com/liyong-labs
+- Issues: <https://github.com/liyong-labs/repo-medic/issues>
+- Discussions: <https://github.com/liyong-labs/repo-medic/discussions>
 
 ## Acknowledgments
 
@@ -233,4 +233,4 @@ Inspired by:
 
 Star history:
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ebziw/repo-medic&type=Date)](https://star-history.com/#ebziw/repo-medic&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=liyong-labs/repo-medic&type=Date)](https://star-history.com/#liyong-labs/repo-medic&Date)

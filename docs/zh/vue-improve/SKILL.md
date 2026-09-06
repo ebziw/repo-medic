@@ -175,4 +175,4 @@ const { count } = storeToRefs(useStore())
 
 ## 仓库
 
-github.com/ebziw/repo-medic — Apache-2.0。vue-improve 当前为骨架，欢迎贡献完整 references（best-practices / anti-patterns / deploy）。
+github.com/liyong-labs/repo-medic — Apache-2.0。vue-improve 当前为骨架，欢迎贡献完整 references（best-practices / anti-patterns / deploy）。

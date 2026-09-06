@@ -1,8 +1,8 @@
 {
-  "name": "ebziw-repo-medic",
+  "name": "liyong-labs-repo-medic",
   "owner": {
-    "name": "ebziw",
-    "url": "https://github.com/ebziw"
+    "name": "liyong-labs",
+    "url": "https://github.com/liyong-labs"
   },
   "metadata": {
     "description": "Self-contained Claude Code skill toolkit for daily code maintenance: refactoring, deduplication, silent-error scanning, directory/document reorganization, PostgreSQL tuning, Vue 3 frontend improvements, tool bootstrap, self-evolution.",

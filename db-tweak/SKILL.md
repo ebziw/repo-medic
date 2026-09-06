@@ -141,4 +141,4 @@ python scripts/config_drift.py --all --repo /path/to/project
 
 ## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0.
+github.com/liyong-labs/repo-medic — Apache-2.0.

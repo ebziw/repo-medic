@@ -79,4 +79,4 @@ Each sub-skill is self-contained (`cp -r` to share): all references/, scripts/, 
 
 ## Repository
 
-github.com/ebziw/repo-medic — open source (Apache-2.0). Contributions welcome: new sub-skills or improvements to existing ones.
+github.com/liyong-labs/repo-medic — open source (Apache-2.0). Contributions welcome: new sub-skills or improvements to existing ones.

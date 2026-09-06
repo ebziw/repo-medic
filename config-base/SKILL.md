@@ -137,4 +137,4 @@ Adding a tool for a new platform: edit the `TOOLS` list in `scripts/tools.py` an
 
 ## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0. The manifest lives in `scripts/tools.py`; edit the `TOOLS` list to add new tools.
+github.com/liyong-labs/repo-medic — Apache-2.0. The manifest lives in `scripts/tools.py`; edit the `TOOLS` list to add new tools.

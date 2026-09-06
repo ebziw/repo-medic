@@ -36,19 +36,19 @@ First release with **community-facing files**. Ready for public contribution.
 ### Option 1: Claude Code Plugin Marketplace (recommended)
 
 ```
-/plugin marketplace add ebziw/repo-medic
+/plugin marketplace add liyong-labs/repo-medic
 ```
 
 ### Option 2: vercel-labs Skills CLI (multi-agent)
 
 ```bash
-npx skills add ebziw/repo-medic
+npx skills add liyong-labs/repo-medic
 ```
 
 ### Option 3: Manual
 
 ```bash
-git clone https://github.com/ebziw/repo-medic.git
+git clone https://github.com/liyong-labs/repo-medic.git
 cd repo-medic
 for d in repo-medic py-improve doc-reorg db-tweak vue-improve config-base evolve; do
   ln -s "$(pwd)/$d" ~/.claude/skills/$d
@@ -72,7 +72,7 @@ done
 
 ## Full Changelog
 
-See [CHANGELOG.md](https://github.com/ebziw/repo-medic/blob/main/CHANGELOG.md).
+See [CHANGELOG.md](https://github.com/liyong-labs/repo-medic/blob/main/CHANGELOG.md).
 
 ## Acknowledgments
 
@@ -85,8 +85,8 @@ Inspired by:
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/ebziw/repo-medic/blob/main/LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/liyong-labs/repo-medic/blob/main/LICENSE).
 
 ---
 
-**Full Changelog**: <https://github.com/ebziw/repo-medic/commits/v0.4.0>
+**Full Changelog**: <https://github.com/liyong-labs/repo-medic/commits/v0.4.0>

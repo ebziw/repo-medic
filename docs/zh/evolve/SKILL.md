@@ -107,4 +107,4 @@ python scripts/extract.py --repo . --json | jq '.candidates[].tag' | sort | uniq
 
 ## 仓库
 
-github.com/ebziw/repo-medic — Apache-2.0。
+github.com/liyong-labs/repo-medic — Apache-2.0。

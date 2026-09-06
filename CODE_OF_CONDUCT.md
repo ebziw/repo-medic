@@ -61,7 +61,7 @@ representative at an online or offline event.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at:
 
-📧 Open a [GitHub issue](https://github.com/ebziw/repo-medic/issues) with
+📧 Open a [GitHub issue](https://github.com/liyong-labs/repo-medic/issues) with
 `security` label — this routes to maintainers privately.
 
 All complaints will be reviewed and investigated promptly and fairly.

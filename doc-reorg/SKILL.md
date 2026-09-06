@@ -98,4 +98,4 @@ Run dir-restructure.md Phase 0-6; on completion continue with doc-reorganize.md 
 
 ## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0.
+github.com/liyong-labs/repo-medic — Apache-2.0.

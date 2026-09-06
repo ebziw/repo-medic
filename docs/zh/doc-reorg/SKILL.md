@@ -98,4 +98,4 @@ self-contained skill。一次调用完成目录重构和文档归档。
 
 ## 仓库
 
-github.com/ebziw/repo-medic — Apache-2.0。
+github.com/liyong-labs/repo-medic — Apache-2.0。

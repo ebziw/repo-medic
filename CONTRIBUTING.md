@@ -98,6 +98,6 @@ This project follows the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). By part
 
 ## Questions?
 
-- 💬 Discussions: <https://github.com/ebziw/repo-medic/discussions>
-- 🐛 Issues: <https://github.com/ebziw/repo-medic/issues>
+- 💬 Discussions: <https://github.com/liyong-labs/repo-medic/discussions>
+- 🐛 Issues: <https://github.com/liyong-labs/repo-medic/issues>
 - 📧 Maintainer: open an issue first (do not email directly)

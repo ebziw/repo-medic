@@ -78,4 +78,4 @@ Usage: /repo-medic <request>   → routes to the matching sub-skill
 
 ## 仓库
 
-github.com/ebziw/repo-medic — 开源（Apache-2.0）。欢迎贡献新 sub-skill 或改进现有。
+github.com/liyong-labs/repo-medic — 开源（Apache-2.0）。欢迎贡献新 sub-skill 或改进现有。

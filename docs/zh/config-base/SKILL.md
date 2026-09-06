@@ -137,4 +137,4 @@ python scripts/tools.py check
 
 ## 仓库
 
-github.com/ebziw/repo-medic — Apache-2.0。manifest 在 `scripts/tools.py`，编辑 `TOOLS` list 加新工具。
+github.com/liyong-labs/repo-medic — Apache-2.0。manifest 在 `scripts/tools.py`，编辑 `TOOLS` list 加新工具。

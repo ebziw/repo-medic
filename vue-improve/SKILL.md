@@ -175,4 +175,4 @@ Frontend build artifacts carry a content hash in chunk names (e.g. `index-abc123
 
 ## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0. vue-improve is currently a skeleton; contributions of complete references (best-practices / anti-patterns / deploy) are welcome.
+github.com/liyong-labs/repo-medic — Apache-2.0. vue-improve is currently a skeleton; contributions of complete references (best-practices / anti-patterns / deploy) are welcome.
