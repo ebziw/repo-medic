@@ -10,6 +10,58 @@ metadata:
 
 self-contained skill。一次调用完成目录重构和文档归档。
 
+## 🛑 MANDATORY WORKFLOW — check all before declaring done
+
+### Phase 0: Snapshot + Reconnaissance
+
+- [ ] **Read** `references/dir-restructure.md` in full (7 phases)
+- [ ] **Read** `references/doc-reorganize.md` (5 phases + 6 分类)
+- [ ] **备份**: `rsync -a ./backup-pre-doc-reorg-$(date +%Y%m%d)/` (铁律 3，回滚用)
+- [ ] **git status 干净** — 改前先 commit 现有未提交工作
+- [ ] 🛑 **GATE**: 备份成功 + 工作区干净才能进 Phase 1
+
+### Phase 1: Inventory
+
+- [ ] **目录扫描**: `tree -L 3 --noreport` + `find . -maxdepth 2 -type d` 列出所有子目录
+- [ ] **文档分类盘点**: 列出 `*.md` 文件，按 MRD/PRD/ARCH/DESIGN/TEST/RESEARCH 6 类预归类
+- [ ] **tmp/ 候选**: `find . -name "tmp*" -o -name "*.tmp" -o -name "*.bak*" -o -name "*~"` 列出候选删除
+- [ ] **debug 产物候选**: `.log` / `nohup.out` / `*.pid` / `core.*` 文件
+- [ ] **断链候选**: `rg "\.\./\.\./" --type md` 找可能断的相对路径引用
+
+### Phase 2: Classify
+
+- [ ] **脚本归类**: 散落的 `.sh` / `.py` 归到 `scripts/{deploy,maintenance,cron,utils}/`
+- [ ] **文档 6 分类**: 散落 `.md` 按类型移到 `docs/{mrd,prd,arch,design,test,research}/`
+- [ ] **重复目录合并**: `diff -rq dirA dirB` 找完全等价的（合并前先备份）
+- [ ] **旧路径保留 redirect**: 用户引用过的旧路径，写 `_redirect.md` 或 symlink
+- [ ] 🛑 **GATE**: 分类计划列给用户确认 + 用户 OK 才能进 Phase 3
+
+### Phase 3: Execute
+
+- [ ] **`git mv` 不 `mv`** — 保留历史（铁律 1 + YAGNI 不绕过 git）
+- [ ] **1 commit = 1 分类**（铁律 2）— 一次只动一类（脚本 / 文档 / tmp）
+- [ ] **每 commit 后** `git log --oneline` + `git status` 检查
+- [ ] **临时文件可删前先 grep** 确认无代码引用: `rg "tmp/oldname"` 应 0 命中
+- [ ] 🛑 **GATE**: 单个 commit 后必跑 `git status` + `git diff --stat` 验证无意外
+
+### Phase 4: Verify
+
+- [ ] **rsync diff 验证**: `diff -rq backup-pre-doc-reorg-*/ ./ | grep -v "^Only in backup"` 应为空（除 .git）
+- [ ] **断链检查**: 把所有 `.md` 里的相对路径提出来，`test -e` 每个
+- [ ] **CI 通过**: 文档里有 CI 的项目跑 `pytest` 确认代码未受影响
+- [ ] **env.md / deploy.md 同步**: 路径变更必同步到 env.md（端口、路径）+ deploy.md（部署脚本）
+- [ ] 🛑 **GATE**: 全部勾选 = 重构完成。任何一项失败 = 回滚 + 排查
+
+### Phase 5: Cleanup
+
+- [ ] **删除 tmp/ debug 产物**: `git rm -r tmp/ debug/`
+- [ ] **删除 backup/**: 验证通过后 `rm -rf backup-pre-doc-reorg-*`
+- [ ] **写 work-note**: 把"哪些路径变了 + 为何变 + 哪些旧路径保留 redirect"写到 `docs/work-note/<date>-doc-reorg.md`
+- [ ] **KB 同步**: 推 ms.bitensor.com 或本机 public-knowledge
+- [ ] 🛑 **GATE**: 全部清理完才能说"重构完成"
+
+---
+
 ## 包含
 
 | 路径 | 内容 |
@@ -23,20 +75,20 @@ self-contained skill。一次调用完成目录重构和文档归档。
 
 ## 14 硬约束（跨子工作流通用）
 
-1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 stdlib + 已装库。不为假设风险提前加 try/except / retry / fallback / 抽象层。
-2. **commit 颗粒度**: 1 逻辑单元 = 1 commit，独立可回滚。
-3. **默认回滚 = rsync 备份还原** (无损)。**绝对禁止 `git reset --hard`**。
-4. **死代码证明需 7 步 checklist**: 静态引用 + 文本搜索 + 框架注册 + export + 动态调用 + 测试/生成 + 用户签字。0 caller grep ≠ 证明。
-5. **TDD 按场景分 4 模式**: Characterization / Red-Green / Structural / Regression。
-6. **commit 前全量测试全绿**，不破 CI。
-7. **prod 锁定**: 不动线上代码，owner 显式授权才动。
-8. **宁缺勿伪**: 不确定的事实留 TODO，不编。校验靠 grep / codegraph / pyright 实测。
-9. **DB 删除必走退场流水线**: DROP 前 RENAME → PLAN_DELETE_<原名>。**doc-reorg 范围内**：删除 doc 文件前先确认无外部引用。
-10. **批量任务先测最小**: 任何批量操作先选最小样本 (1-10) 跑通 + 计时，按比例推全量耗时。**禁止直接开最大集合**。
-11. **daemon / 服务代码改动 4 步独立**: ①本地 Edit ②本地 py_compile 验证 ③scp 上传 + 清 __pycache__ ④systemctl restart + pgrep 验证 PID 变了。
-12. **buffer 所有权被转移**: 缓存方必须保留副本，每次传递前拷贝。
-13. **hash 化构建产物必须整目录同步**: 前端 chunk 名带 hash — 只推改的文件 → index.html 引用新 hash → 缺 chunk → MIME text/html 404。
-14. **部署/发布后必须验证实际生效产物标识**: 脚本输出 "✓ done" ≠ 部署成功。
+1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 stdlib + 已装库。
+2. **commit 颗粒度**: 1 逻辑单元 = 1 commit。
+3. **默认回滚 = rsync 备份还原**。**绝对禁止 `git reset --hard`**。
+4. **死代码证明需 7 步 checklist**: 删除路径前 grep 确认无引用。
+5. **TDD**: doc 改动不适用；如改 doc generator 代码用 Characterization。
+6. **commit 前全量测试全绿**: 路径变更可能影响测试 import。
+7. **prod 锁定**: 不动线上 prod 路径。
+8. **宁缺勿伪**: 旧路径如有用户引用，必须 redirect / symlink，不直接砍。
+9. **DB 删除必走退场流水线**: **doc-reorg 范围内**：删除 doc 文件前先确认无外部链接引用（grep + 检查 README 引用）。
+10. **批量任务先测最小**: 大批量 mv 先选 1 个子目录 sample。
+11. **daemon / 服务代码改动 4 步独立**: 部署脚本路径改了 → 4 步独立验证。
+12. **buffer 所有权被转移**: 缓存方必须保留副本。
+13. **hash 化构建产物必须整目录同步**: 静态资源路径变更需重新 build + 整目录同步。
+14. **部署/发布后必须验证实际生效产物标识**: 新路径请求 curl 200。
 
 ## 关联
 

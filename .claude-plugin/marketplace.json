@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "repo-medic",
-      "description": "Meta router + 4 self-contained sub-skills for code maintenance (py-improve / doc-reorg / db-tweak / vue-improve). Each sub-skill sharable via cp -r.",
+      "description": "Meta router + 5 self-contained sub-skills for code maintenance (py-improve / doc-reorg / db-tweak / vue-improve / config-base). Each sub-skill sharable via cp -r.",
       "source": "./",
       "strict": false,
       "skills": [
@@ -19,7 +19,8 @@
         "./py-improve",
         "./doc-reorg",
         "./db-tweak",
-        "./vue-improve"
+        "./vue-improve",
+        "./config-base"
       ]
     }
   ]

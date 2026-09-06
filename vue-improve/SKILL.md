@@ -8,15 +8,64 @@ metadata:
 
 # vue-improve — Vue 3 前端代码改进
 
-self-contained skill。第一版骨架，references 待补充。可用部分：
+self-contained skill。第一版骨架，references 待补（欢迎贡献）。
 
-## 包含
+## 🛑 MANDATORY WORKFLOW — check all before declaring done
 
-| 路径 | 内容 |
-|---|---|
-| `references/vue-best-practices.md` | 占位（首版空，下个版本填） |
-| `references/vue-anti-patterns.md` | 占位（首版空） |
-| `references/frontend-deploy.md` | 占位（首版空） |
+### Phase 0: Reconnaissance
+
+- [ ] **读现有 Vue 项目结构**: `package.json` + `vite.config.*` + `tsconfig.json` + `src/` 布局
+- [ ] **列组件**: `find src -name "*.vue" | head -50` 摸规模
+- [ ] **列 stores** (Pinia): `find src/stores -name "*.ts" 2>/dev/null`
+- [ ] **列路由**: `find src/router -name "*.ts" 2>/dev/null`
+- [ ] **bundle 当前大小**: `pnpm build && du -sh dist/` 或 `npm run build`
+- [ ] 🛑 **GATE**: 摸清规模才能进 Phase 1（小项目 < 50 组件跳过重型优化）
+
+### Phase 1: Anti-pattern scan
+
+- [ ] **setup TDZ 引用后置绑定**: `rg "watch\(.*\)" src/ | head -20` 找可能 TDZ 风险
+- [ ] **watchEffect 写自身订阅源**: `rg "watchEffect" src/`，人工 review 每个 callback
+- [ ] **一次性消费 flag 泄漏**: `rg "let .* = true" src/ | rg -v "test"` 找 watch flag
+- [ ] **解构遮蔽外层 ref**: `rg "const \[.*\] = .*await Promise.all" src/`
+- [ ] **Pinia store 解构丢响应性**: `rg "const \{.*\} = use\w+Store\(\)" src/`（应为 `storeToRefs`）
+- [ ] **选择器根 scope 漏判**: 第三方库（pdf.js / ECharts）的 worker / 实例共享（参考代码清单）
+- [ ] 输出 `anti-pattern-report.md` 列命中项 + 文件:行 + 修复建议
+
+### Phase 2: Fix
+
+- [ ] **TDZ 后置绑定**: 把 const 声明移到 watch 之前
+- [ ] **watchEffect 改 watch**: 或加 `let initialized = false` guard
+- [ ] **flag 泄漏改 prev 比较**: `let prev = val; watch(val, v => { if (v !== prev) { prev = v; ... } })`
+- [ ] **解构改前缀**: `const [firstDoc, secondDoc] = ...`
+- [ ] **Pinia storeToRefs**: `import { storeToRefs } from 'pinia'; const { count } = storeToRefs(useStore())`
+- [ ] **第三方库实例化谨慎**: 用 `import.meta.glob` 或 `new MyClass()` 单例 + destroy
+- [ ] 🛑 **GATE**: 每个 fix 单独 commit（铁律 2）+ 跑 vitest 验证
+
+### Phase 3: Test + Type
+
+- [ ] **vitest 全绿**: `npx vitest run` 0 fail
+- [ ] **vue-tsc 无类型错误**: `npx vue-tsc --noEmit`
+- [ ] **ESLint**: `npx eslint src/`
+- [ ] **组件 prop 类型显式**: 不能用 `any`
+- [ ] 🛑 **GATE**: 上面 4 项全绿才能 build
+
+### Phase 4: Build + Deploy verify
+
+- [ ] **build 成功**: `pnpm build` 0 error
+- [ ] **bundle 大小对比**: Phase 0 baseline vs 现在
+- [ ] **chunk hash 列表**: `ls dist/assets/` 列出所有 `*.js` / `*.css`
+- [ ] **部署后 curl 验证**:
+  ```bash
+  curl -s https://example.com/ | grep -oE 'src="[^"]+"' | sed 's/src="//;s/"//' | \
+    while read f; do
+      code=$(curl -sI "https://example.com/$f" | head -1 | awk '{print $2}')
+      [ "$code" = "200" ] || echo "MISSING: $f"
+    done
+  ```
+- [ ] **新 hash 实际生效**: 浏览器 DevTools Network 看实际加载的 chunk hash
+- [ ] 🛑 **GATE**: 部署验证全部 200 + 新 hash 可见才能说"上线完成"
+
+---
 
 ## 已知坑（首版内置，v0.1）
 
@@ -55,7 +104,7 @@ watchEffect(() => {
 ### 一次性消费 flag 泄漏
 
 ```js
-// BAD: 状态已等于目标值时 watch 不触发
+// BAD
 let pending = true
 watch(loading, (val) => {
   if (val === false && pending) {
@@ -94,26 +143,17 @@ const store = useStore()  // 整个 store 引用保持响应
 const { count } = storeToRefs(useStore())
 ```
 
-## Vite 部署：chunk hash 同步
+### Vite 部署：chunk hash 同步
 
 前端 build 产物 chunk 名带内容 hash（如 `index-abc123.js`）。只推改的文件 → index.html 引用新 hash → 缺 chunk → MIME `text/html` 404。
 
 **部署后必做**：curl 验证新 index.html 引用的**每一个** entry/chunk URL 都返回 200。
 
-```bash
-# 部署后
-curl -s https://example.com/ | grep -oE 'src="[^"]+"' | sed 's/src="//;s/"//' | \
-  while read f; do
-    code=$(curl -sI "https://example.com/$f" | head -1 | awk '{print $2}')
-    [ "$code" = "200" ] || echo "MISSING: $f"
-  done
-```
-
 ## 14 硬约束（跨子工作流通用）
 
-1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 Vue 生态已装库 + Vite 默认配置，不为假设场景加 lodash / rxjs。
+1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 Vue 生态已装库 + Vite 默认配置。
 2. **commit 颗粒度**: 1 逻辑单元 = 1 commit（组件 + store + 测试同 commit）。
-3. **默认回滚 = git revert**（前端无 rsync）。**绝对禁止 `git reset --hard`**。
+3. **默认回滚 = git revert**。**绝对禁止 `git reset --hard`**。
 4. **死代码证明需 7 步 checklist**: 组件删除前确认无 router / 动态 import 引用。
 5. **TDD**: Vue 组件用 Vitest + @vue/test-utils，Pinia store 单测。
 6. **commit 前全量测试全绿**: `vitest run` + `vue-tsc --noEmit`。
@@ -121,17 +161,18 @@ curl -s https://example.com/ | grep -oE 'src="[^"]+"' | sed 's/src="//;s/"//' | 
 8. **宁缺勿伪**: 不编组件 prop 类型，TypeScript 严格模式打开。
 9. **DB 删除**: 不适用（前端无 DB）。
 10. **批量任务先测最小**: 大批量组件迁移先选 1 个目录 sample。
-11. **daemon / 服务代码改动 4 步独立**: dev server 重启验证：`pgrep -af "vite"` 对比 PID。
+11. **daemon 改动 4 步独立**: dev server 重启验证 `pgrep -af "vite"`。
 12. **buffer 所有权被转移**: `postMessage` / `getDocument({data})` / buffer transfer — 缓存方保留副本，每次传递前拷贝。
 13. **hash 化构建产物必须整目录同步**: 见上「Vite 部署」节。
-14. **部署/发布后必须验证实际生效产物标识**: curl 验证新 hash 实际生效，不看脚本退出码。
+14. **部署验证实际生效标识**: curl 验证新 hash 实际生效，不看脚本退出码。
 
 ## 关联
 
 - `/repo-medic` — meta 入口
 - `/py-improve` — 后端 API 配套审查（前端调的后端）
 - `/doc-reorg` — 组件文档（README / storybook）整理
+- `/config-base` — bootstrap Node + Vite + Vue 工具链
 
 ## 仓库
 
-github.com/ebziw/repo-medic — Apache-2.0。vue-improve 当前为骨架，欢迎贡献完整 references。
+github.com/ebziw/repo-medic — Apache-2.0。vue-improve 当前为骨架，欢迎贡献完整 references（best-practices / anti-patterns / deploy）。
