@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.8] — 2026-09-07
+
+### Added — Competitor research absorbed
+
+**doc-reorg** (2 new references):
+- `references/ai-cruft-detector.md` — borrowed from `asamarts/alint` `agent-hygiene@v1` ruleset: catch AI-authored cruft before commit (versioned-dup filenames / scratch docs at root / AI-affirmation prose / debug residue / model-attributed TODOs)
+- `references/safe-apply-protocol.md` — borrowed from `j-256/reorg` `apply --yes` + `--undo` semantics: undo-script generation + drift-abort-the-whole-batch invariant
+
+**db-tweak** (3 new references):
+- `references/pgx-anti-pattern-codes.md` — borrowed from `losefor/pg-explain`: 19 stable `PGX_*` codes (cartesian product / seq scan large / row misestimate / stale statistics / low cache hit / sort spill / memoize evict / ...) for greppable EXPLAIN findings
+- `references/governed-undo-protocol.md` — borrowed from `aiops-tools/postgres-aiops`: every write op captures real before-state (create_index ↔ drop_index, update_setting ↔ prior value); `terminate_backend` / `run_vacuum` declare no-undo; audit jsonl
+- `references/risk-tier-and-simulation.md` — borrowed from `valkdb.com` (testcontainer isolation, metadata-only) + `Azimutt Inspector` (severity × confidence scoring): T1-T4 risk tiers, simulate-fix-before-merge workflow
+
+### Sources surveyed (not absorbed — reference only)
+
+- doc-reorg: Orgit, project-pruner, Foldweave (Change File), spindle (BLAKE3 ledger), dosido (TS-import rewrite), pka (multi-agent context)
+- db-tweak: PGTuner (visual EXPLAIN diff), pganalyze (auto_explain + Index Advisor), Postgres-AIops (35 MCP tools), PgDoctor (AI suggestions + confidence)
+
+### Rationale
+
+Absorb only what fits the **borrow-the-stable-codes-or-design-pattern** rule:
+1. Stable greppable vocabularies (PGX_*) — agents + humans + scripts share one language
+2. Reusable protocols (undo / safe-apply / risk-tier) — apply to many DB / file changes
+3. Pattern catalogues (ai-cruft detector) — pre-commit gate, runs against any repo
+
+Skipped: visual dashboards (out of scope for a CLI skill), pricing SaaS (non-OSS), and language-specific tooling that doesn't transfer (dosido is TS-only).
+
 ## [0.5.7] — 2026-09-07
 
 ### Changed

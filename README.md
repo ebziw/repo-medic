@@ -197,7 +197,8 @@ Per-project specifics still belong in that project's own work-notes — evolve i
 - [x] v0.2.1 — Windows compatibility (.cmd/.bat/.com + GBK fallback)
 - [x] v0.3.0 — `evolve` sub-skill (self-distill pitfalls)
 - [x] v0.4.0 — Community files (CONTRIBUTING, CoC, issue/PR templates) + README polish
-- [x] v0.5.7 — `repo-medic-lessons` py-improve bucket distilled 9→5 method-level lessons (dropped rare/tool-specific, merged same-root-cause, lifted abstraction) ← **current**
+- [x] v0.5.8 — Competitor research absorbed: doc-reorg (+ AI-cruft detector + safe-apply protocol), db-tweak (+ 19 PGX_* codes + governed undo + risk-tier + metadata-only simulation) ← **current**
+- [x] v0.5.7 — `repo-medic-lessons` py-improve bucket distilled 9→5 method-level lessons (dropped rare/tool-specific, merged same-root-cause, lifted abstraction)
 - [x] v0.5.6 — `repo-medic-lessons` extended with 9 more lessons from `kb-104@local` (silent-fallback / cold-query perf / god-fn characterization / stale-test judgment / ooxml-strict / long-lived unit / pkill -f / third-party-config prod-input / shared-backend each-consumer)
 - [x] v0.5.5 — Companion skill `repo-medic-lessons` ships 8 distilled lessons (6 root-cause classes) from fleet `/evolve` output
 - [x] v0.5.0 — Fully bilingual docs: English runtime skills + 简体中文 mirror (`docs/zh/`)

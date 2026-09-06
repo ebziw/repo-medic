@@ -68,10 +68,12 @@ Self-contained skill. One invocation completes directory restructuring and docum
 |---|---|
 | `references/dir-restructure.md` | Phases 0-6 (snapshot → script sorting → tmp → debug → merge → archive) |
 | `references/doc-reorganize.md` | 5 phases (inventory → six categories → env/deploy sync → templates → consistency) |
+| `references/ai-cruft-detector.md` | AI-authored residue patterns (versioned dups / scratch docs / affirmation prose / debug residue / model-attributed TODOs) — borrowed from `alint` agent-hygiene@v1 |
+| `references/safe-apply-protocol.md` | undo-script + drift-abort pattern — borrowed from `j-256/reorg` `apply --yes` semantics |
 
 ## Usage flow
 
-Run dir-restructure.md Phase 0-6; on completion continue with doc-reorganize.md Phase 1-5.
+Run dir-restructure.md Phase 0-6; on completion continue with doc-reorganize.md Phase 1-5. Use `ai-cruft-detector.md` as pre-commit / CI gate. Use `safe-apply-protocol.md` for any batch file operation.
 
 ## 14 hard constraints (shared across sub-workflows)
 

@@ -87,6 +87,9 @@ Self-contained skill. Covers PG slow query optimization, indexes, DDL safety, an
 | Path | Contents |
 |---|---|
 | `references/db-tuning.md` | 9 iron laws + 7 phases + 8 patterns + tooling stack + monitoring metrics |
+| `references/pgx-anti-pattern-codes.md` | 19 stable `PGX_*` codes (cartesian product / seq scan large / row misestimate / stale statistics / ...) borrowed from `losefor/pg-explain` |
+| `references/governed-undo-protocol.md` | write op → captured inverse; create_index/drop_index/update_setting/terminate_backend pairs (borrowed from `aiops-tools/postgres-aiops`) |
+| `references/risk-tier-and-simulation.md` | T1-T4 risk tiers + metadata-only testcontainer simulation + severity×confidence scoring (borrowed from `valkdb.com` + `Azimutt Inspector`) |
 | `scripts/plan-delete.sh` | RENAME → PLAN_DELETE_ pipeline before DROP |
 | `scripts/audit-plan-delete.sh` | list all pending + DAYS_LEFT + STATUS |
 | `scripts/config_drift.py` | live config (systemd / crontab / .env) vs git detection |
