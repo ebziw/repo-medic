@@ -32,6 +32,7 @@ class Tool:
     install_cmd_macos: list[str] | None = None
     install_cmd_windows: list[str] | None = None
     category: str = "general"  # python | node | db | system | mcp
+    optional: bool = False  # missing -> OPTIONAL (skip if unused), not MISSING
 
 
 # Tool manifest. Edit here when adding new dependencies.
@@ -49,16 +50,17 @@ TOOLS: list[Tool] = [
     # Node + Vue toolchain (vue-improve)
     Tool("node", ["node", "--version"], "18.0", category="node"),
     Tool("npm", ["npm", "--version"], "9.0", category="node"),
-    Tool("pnpm", ["pnpm", "--version"], "8.0", category="node"),
+    Tool("pnpm", ["pnpm", "--version"], "8.0", category="node", optional=True),
     # codegraph (py-improve)
     Tool("codegraph", ["codegraph", "--version"], "3.0", install_cmd_linux=["npm", "install", "-g", "@optave/codegraph"], category="system"),
     # ripgrep (doc-reorg + general)
     Tool("rg", ["rg", "--version"], "13.0", install_cmd_linux=["apt-get", "install", "-y", "ripgrep"], install_cmd_macos=["brew", "install", "ripgrep"], category="system"),
     Tool("tree", ["tree", "--version"], None, install_cmd_linux=["apt-get", "install", "-y", "tree"], install_cmd_macos=["brew", "install", "tree"], category="system"),
     # PostgreSQL client (db-tweak)
-    Tool("psql", ["psql", "--version"], "14.0", install_cmd_linux=["apt-get", "install", "-y", "postgresql-client"], install_cmd_macos=["brew", "install", "libpq", "--link"], category="db"),
-    # MCP python deps (py-improve via mcp_servers/python_refactor_server.py)
-    Tool("mcp", ["python", "-c", "import mcp; print(mcp.__version__)"], "1.0", install_cmd_linux=["uv", "pip", "install", "--system", "mcp", "fastapi", "uvicorn"], category="mcp"),
+    Tool("psql", ["psql", "--version"], "14.0", install_cmd_linux=["apt-get", "install", "-y", "postgresql-client"], install_cmd_macos=["brew", "install", "libpq", "--link"], category="db", optional=True),
+    # MCP python deps (py-improve via mcp_servers/python_refactor_server.py).
+    # importlib.metadata, NOT mcp.__version__ — the module has no __version__ attr.
+    Tool("mcp", ["python", "-c", "import importlib.metadata as m; print(m.version('mcp'))"], "1.0", install_cmd_linux=["uv", "pip", "install", "--system", "mcp", "fastapi", "uvicorn"], category="mcp"),
 ]
 
 
@@ -88,8 +90,8 @@ def _resolve_cmd(cmd: list[str]) -> tuple[list[str] | str, dict]:
     if needs_shell:
         # shell=True requires string form
         final = " ".join(f'"{a}"' if " " in a else a for a in cmd)
-        return final, {"shell": True, "errors": "replace"}
-    return cmd, {"errors": "replace"}
+        return final, {"shell": True, "encoding": "utf-8", "errors": "replace"}
+    return cmd, {"encoding": "utf-8", "errors": "replace"}
 
 
 def _check(tool: Tool) -> dict:
@@ -97,7 +99,7 @@ def _check(tool: Tool) -> dict:
     cmd, run_kwargs = _resolve_cmd(tool.check_cmd)
     exe = cmd[0] if isinstance(cmd, list) else cmd.split()[0].strip('"')
     if shutil.which(exe) is None:
-        return {"name": tool.name, "installed": False, "version": None, "ok": False, "category": tool.category}
+        return {"name": tool.name, "installed": False, "version": None, "ok": False, "category": tool.category, "optional": tool.optional}
 
     try:
         out = subprocess.run(
@@ -108,7 +110,22 @@ def _check(tool: Tool) -> dict:
         return {"name": tool.name, "installed": True, "version": None, "ok": False, "error": str(e), "category": tool.category}
 
     if tool.min_version is None:
-        return {"name": tool.name, "installed": True, "version": ver_str, "ok": True, "category": tool.category}
+        return {"name": tool.name, "installed": True, "version": ver_str, "ok": True, "category": tool.category, "optional": tool.optional}
+
+    # Guard: probe output that contains no version digits (a traceback, a banner,
+    # an encoding-mangled string) must be reported as a probe ERROR — comparing it
+    # against min_version would misreport an installed tool as OUTDATED.
+    if "Traceback" in ver_str or not re.search(r"\d", ver_str):
+        return {
+            "name": tool.name,
+            "installed": True,
+            "version": ver_str,
+            "required": tool.min_version,
+            "ok": False,
+            "error": "version probe produced no parseable version",
+            "category": tool.category,
+            "optional": tool.optional,
+        }
 
     actual = _version_tuple(ver_str)
     required = _version_tuple(tool.min_version)
@@ -120,6 +137,7 @@ def _check(tool: Tool) -> dict:
         "required": tool.min_version,
         "ok": ok,
         "category": tool.category,
+        "optional": tool.optional,
     }
 
 
@@ -144,13 +162,17 @@ def cmd_check(args: argparse.Namespace) -> int:
     # Table output
     print(f"{'TOOL':<14} {'CAT':<6} {'STATUS':<8} {'VERSION':<20} {'REQUIRED':<10}")
     print("-" * 65)
-    by_status = {"ok": 0, "missing": 0, "outdated": 0, "error": 0}
+    by_status = {"ok": 0, "missing": 0, "outdated": 0, "error": 0, "optional": 0}
     for r in results:
         if not r["installed"]:
-            status = "MISSING"
             version = "-"
             required = t_min(r["name"]) or "-"
-            by_status["missing"] += 1
+            if r.get("optional"):
+                status = "OPTIONAL"
+                by_status["optional"] += 1
+            else:
+                status = "MISSING"
+                by_status["missing"] += 1
         elif r.get("ok"):
             status = "OK"
             version = (r.get("version") or "-")[:20]
@@ -172,7 +194,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(
         f"Total: {len(results)}  OK={by_status['ok']}  "
         f"MISSING={by_status['missing']}  OUTDATED={by_status['outdated']}  "
-        f"ERROR={by_status['error']}"
+        f"ERROR={by_status['error']}  OPTIONAL={by_status['optional']}"
     )
     return 0
 

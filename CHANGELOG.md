@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-09-06
+
+### Fixed
+- `config-base` `tools.py`: `mcp` was reported OUTDATED on Windows — the probe
+  used `mcp.__version__` (attribute does not exist), captured a traceback as
+  the "version" and compared it. Now probes via
+  `importlib.metadata.version("mcp")`
+- `config-base` `tools.py`: probe output containing no parseable version
+  (traceback / banner / encoding garbage) is now reported as a probe ERROR,
+  never silently compared into OUTDATED
+- `config-base` `tools.py`: subprocess output decoded as UTF-8 explicitly
+  (locale GBK mangled some tool banners on Windows)
+
+### Added
+- `config-base` `tools.py`: `optional` tool flag — `pnpm` and `psql` now show
+  as `OPTIONAL` (skip if the project doesn't use them) instead of MISSING,
+  with their own counter in the summary line
+
 ## [0.5.3] — 2026-09-06
 
 ### Fixed
