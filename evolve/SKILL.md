@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: "repo-medic self-evolution — collect recent pitfalls and lessons from the current project, distill them into rules injectable into SKILL.md, and stop future runs from hitting the same pitfalls. Scan git log + docs/work-note/, cluster, review with the user, then write into sub-skills. Triggers: pitfall, experience, lessons learned, distill, postmortem, retrospective, evolution, evolve, project retrospective, KB feedback, self-improve"
+description: "repo-medic self-evolution — collect recent pitfalls and lessons from the current project, distill them into additive lessons stored in the upgrade-safe repo-medic-lessons companion skill, and stop future runs from hitting the same pitfalls. Scan git log + docs/work-note/, cluster, review with the user, then bucket per sub-skill. Triggers: pitfall, experience, lessons learned, distill, postmortem, retrospective, evolution, evolve, project retrospective, KB feedback, self-improve"
 metadata:
   type: ops
   scope: public
@@ -59,7 +59,8 @@ Self-contained skill. Distills "pitfalls hit recently" into rules injectable int
 | Path | Contents |
 |---|---|
 | `scripts/extract.py` | git log + work-notes extractor (outputs candidate lessons) |
-| `templates/lesson.md` | lesson injection format template |
+| `templates/lesson.md` | lesson file format template |
+| `templates/lessons-skill.md` | skeleton for the `repo-medic-lessons` companion skill (Phase 3 creates it from this) |
 | `references/lesson-schema.md` | extraction field definitions (Symptom / Cause / Fix / Frequency) |
 
 ## Usage
@@ -78,7 +79,7 @@ python scripts/extract.py --repo . --max-commits 100
 python scripts/extract.py --repo . --json | jq '.candidates[].tag' | sort | uniq -c
 ```
 
-The output is a candidate list (including source commit/work-note links + frequency). After user review, inject into the target sub-skill.
+The output is a candidate list (including source commit/work-note links + frequency). After user review, bucket each lesson under its target sub-skill in the `repo-medic-lessons` companion skill (Phase 3).
 
 ## 14 Hard Constraints (common across sub-workflows)
 

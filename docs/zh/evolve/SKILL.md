@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: repo-medic 自进化 — 收集当前项目最近的坑 + 经验，蒸馏成可注入 SKILL.md 的规则，避免未来踩同样坑。扫描 git log + docs/work-note/，聚类后用户审核，写入 sub-skill。Triggers: 踩坑, 经验, 教训, 蒸馏, 蒸馏, postmortem, retrospective, 进化, lessons learned, pitfall, evolve, 项目回顾, KB 反哺, self-improve
+description: repo-medic 自进化 — 收集当前项目最近的坑 + 经验，蒸馏成增量 lesson，存入升级安全的 repo-medic-lessons companion skill，避免未来踩同样坑。扫描 git log + docs/work-note/，聚类后用户审核，按子 skill 分桶。Triggers: 踩坑, 经验, 教训, 蒸馏, postmortem, retrospective, 进化, lessons learned, pitfall, evolve, 项目回顾, KB 反哺, self-improve
 metadata:
   type: ops
   scope: public
@@ -59,7 +59,8 @@ self-contained skill。把"最近踩的坑"蒸馏成 SKILL.md 可注入的规则
 | 路径 | 内容 |
 |---|---|
 | `scripts/extract.py` | git log + work-notes 提取器（输出候选 lesson） |
-| `templates/lesson.md` | lesson 注入格式模板 |
+| `templates/lesson.md` | lesson 文件格式模板 |
+| `templates/lessons-skill.md` | `repo-medic-lessons` companion skill 骨架（Phase 3 首次运行据此创建） |
 | `references/lesson-schema.md` | 提取字段定义（Symptom / Cause / Fix / Frequency） |
 
 ## 使用
@@ -78,7 +79,7 @@ python scripts/extract.py --repo . --max-commits 100
 python scripts/extract.py --repo . --json | jq '.candidates[].tag' | sort | uniq -c
 ```
 
-输出是候选列表（含来源 commit/work-note 链接 + 频率）。用户审核后再 inject 到目标 sub-skill。
+输出是候选列表（含来源 commit/work-note 链接 + 频率）。用户审核后，按 Phase 3 归入 repo-medic-lessons companion skill 中对应 target sub-skill 的桶。
 
 ## 14 硬约束（跨子工作流通用）
 

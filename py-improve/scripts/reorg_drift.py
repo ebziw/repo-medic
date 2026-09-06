@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-"""reorg_drift.py — reorg 漂移检测 (Phase 13.2).
+"""reorg_drift.py — reorg drift detection (Phase 13.2).
 
-2026-09-03 起源: kb@245 watchlist session 修 2 broken import (reorg 删 module
-但 caller 引用):
-- commit 4646799cf 删 backend/domains/qa/quality.py 508 行, 但
-  backend/core/direct_upload.py:506 仍 `from backend.core.quality import
+Origin 2026-09-03: kb@245 watchlist session fixed 2 broken imports (reorg
+deleted a module but callers still referenced it):
+- commit 4646799cf deleted backend/domains/qa/quality.py (508 lines), but
+  backend/core/direct_upload.py:506 still had `from backend.core.quality import
   (QUALITY_THRESHOLD_LOW, ...)` → ImportError, _process_one_doc_direct broken.
-- commit 471ea8d24 删 summarize_with_title_zh, 但
-  crawler/feed_to_kb.py:1895 仍 import → 同样 ImportError.
+- commit 471ea8d24 deleted summarize_with_title_zh, but
+  crawler/feed_to_kb.py:1895 still imported it → same ImportError.
 
-检测方法: `git log --diff-filter=D` 找 reorg 删的文件 → 扫现存的 `from X
-import | import X` → 找引用残留 → 列 file:line.
+Detection method: `git log --diff-filter=D` finds files deleted by the reorg →
+scan surviving `from X import | import X` → find stale references → list
+file:line.
 
-限制: 只检本仓库 Python 源码 (默认 git ls-files 探测顶层源码目录,
-Python-only). 跨仓库引用 (e.g. 别的项目 pip install) 检不到, 但本机场景够用.
+Limitations: only checks Python source in this repo (top-level source dirs are
+probed via git ls-files by default, Python-only). Cross-repo references
+(e.g. another project installed via pip) cannot be detected, but that is good
+enough for this machine.
 
-用法:
-    python3 scripts/audit/reorg_drift.py                        # 检全仓 (默认探测)
-    python3 scripts/audit/reorg_drift.py --dirs backend crawler # 显式指定源码目录
-    python3 scripts/audit/reorg_drift.py --since 30             # 检 30 天内删的
-    python3 scripts/audit/reorg_drift.py --no-color             # CI 模式
+Usage:
+    python3 scripts/reorg_drift.py                        # check whole repo (auto-probe)
+    python3 scripts/reorg_drift.py --dirs backend crawler # explicit source dirs
+    python3 scripts/reorg_drift.py --since 30             # check deletions in last 30 days
+    python3 scripts/reorg_drift.py --no-color             # CI mode
 
-退出码: 0=无漂移, 1=有引用残留 (caller 引用了不存在的 module/symbol).
+Exit codes: 0=no drift, 1=stale references found (a caller references a
+non-existent module/symbol).
 """
 from __future__ import annotations
 
@@ -31,34 +35,34 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 仓库根: 用 git rev-parse 找 (skill 可能放任意位置, parents[N] 不可靠)
+# Repo root: found via git rev-parse (the skill may live anywhere, parents[N] is unreliable)
 def _find_repo_root() -> Path:
-    """从本脚本位置向上 walk, 找含 .git 目录的最近祖先."""
+    """Walk up from this script's location to the nearest ancestor containing a .git directory."""
     p = Path(__file__).resolve().parent
     for cand in [p, *p.parents]:
         if (cand / ".git").exists():
             return cand
-    # 兜底: 走 git rev-parse (cwd 是 repo 内)
+    # Fallback: use git rev-parse (cwd is inside the repo)
     r = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                        capture_output=True, text=True, check=False)
     if r.returncode == 0:
         return Path(r.stdout.strip())
-    return p  # 兜底: 脚本所在目录
+    return p  # Fallback: the directory containing this script
 
 
 REPO_ROOT = _find_repo_root()
 
-# 排除
+# Exclusions
 EXCLUDE_DIRS = {".git", "__pycache__", "node_modules", "venv", ".venv",
                 "build", "dist", ".codegraph"}
 
 
 def _detect_source_dirs() -> list[str] | None:
-    """默认目录探测: `git ls-files "*.py"` (cwd=REPO_ROOT) → 每路径第一段 →
-    去 EXCLUDE_DIRS → 去非目录段 → 排序.
+    """Default directory probing: `git ls-files "*.py"` (cwd=REPO_ROOT) → first
+    path segment of each → drop EXCLUDE_DIRS → drop non-directory segments → sort.
 
-    无 .py 跟踪文件或无有效顶层目录 → print WARNING + 返回 None
-    (调用方 return 1, 不静默过).
+    No tracked .py files or no valid top-level dirs → print WARNING + return None
+    (caller returns 1, never silently passes).
     """
     r = subprocess.run(["git", "ls-files", "*.py"], cwd=REPO_ROOT,
                        capture_output=True, text=True, check=False)
@@ -66,17 +70,17 @@ def _detect_source_dirs() -> list[str] | None:
     segs = sorted({ln.split("/")[0] for ln in lines} - EXCLUDE_DIRS)
     dirs = [s for s in segs if (REPO_ROOT / s).is_dir()]
     if not lines or not dirs:
-        print("WARNING: 未从 git ls-files 探测到源码目录, 用 --dirs 指定")
+        print("WARNING: no source dirs probed from git ls-files, specify them with --dirs")
         return None
     return dirs
 
 
 def _run_git_log_deleted(since_days: int | None) -> list[str]:
-    """返回最近 N 天 reorg 删的 *.py 文件路径 (相对 REPO_ROOT)."""
+    """Return *.py paths deleted by the reorg in the last N days (relative to REPO_ROOT)."""
     cmd = ["git", "log", "--diff-filter=D", "--name-only", "--pretty=format:"]
     if since_days is not None:
         cmd.extend([f"--since={since_days} days ago"])
-    cmd.append("--")  # 仅 .py
+    cmd.append("--")  # .py files only
     cmd.append("*.py")
     r = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
                        check=False)
@@ -84,9 +88,10 @@ def _run_git_log_deleted(since_days: int | None) -> list[str]:
 
 
 def _imports_in_repo(dirs: list[str]) -> list[tuple[Path, int, str]]:
-    """扫指定顶层目录, 返回 (file, line, import_str) 三元组 list.
+    """Scan the given top-level dirs, return a list of (file, line, import_str)
+    tuples.
 
-    只扫 dirs, 排除 EXCLUDE_DIRS.
+    Only scans dirs, excluding EXCLUDE_DIRS.
     """
     pattern = re.compile(r"^\s*(?:from\s+([\w.]+)|import\s+([\w.]+))(?:\s+import\s+)?", re.M)
     out: list[tuple[Path, int, str]] = []
@@ -114,7 +119,7 @@ def main() -> int:
     ap.add_argument("--since", type=int, default=None,
                     help="only check files deleted in last N days (default: all)")
     ap.add_argument("--dirs", nargs="*", default=None,
-                    help="top-level 源码目录 (默认: git ls-files 探测)")
+                    help="top-level source dirs (default: probed via git ls-files)")
     ap.add_argument("--no-color", action="store_true", help="disable ANSI colors")
     args = ap.parse_args()
 
@@ -126,19 +131,20 @@ def main() -> int:
 
     deleted = _run_git_log_deleted(args.since)
     if not deleted:
-        print(f"无 reorg 删的 .py 文件" + (f" (--since={args.since}d)" if args.since else ""))
+        print(f"no .py files deleted by the reorg" + (f" (--since={args.since}d)" if args.since else ""))
         return 0
 
-    print(f"reorg 删的 .py 文件: {len(deleted)}")
+    print(f".py files deleted by the reorg: {len(deleted)}")
     for d in deleted:
         print(f"  - {d}")
     print()
 
-    # 把删除的文件名转 module 名 (e.g. backend/core/quality.py → backend.core.quality)
+    # Convert deleted file paths to module names (e.g. backend/core/quality.py → backend.core.quality)
     raw_deleted_mods = {d[:-3].replace("/", ".") for d in deleted if d.endswith(".py")}
 
-    # 过滤: 如果当前 git 还跟踪同名 .py (NoOp compat wrapper 或重新引入), 跳过
-    # 这些不算 "caller 引用了不存在 module", 真正删除 = 不在 ls-files
+    # Filter: if git still tracks a .py with the same name (NoOp compat wrapper or
+    # re-introduced file), skip it. These do not count as "caller references a
+    # non-existent module"; truly deleted = not in ls-files
     current_py = subprocess.run(
         ["git", "ls-files", "*.py"],
         capture_output=True, text=True, check=False, cwd=str(REPO_ROOT),
@@ -147,10 +153,10 @@ def main() -> int:
     deleted_mods = raw_deleted_mods - current_mods
     if raw_deleted_mods - deleted_mods:
         skipped = sorted(raw_deleted_mods - deleted_mods)
-        print(f"(跳过 {len(skipped)} 个有 compat wrapper 替代: {', '.join(skipped[:5])}{'...' if len(skipped)>5 else ''})")
+        print(f"(skipped {len(skipped)} already replaced by a compat wrapper: {', '.join(skipped[:5])}{'...' if len(skipped)>5 else ''})")
     print()
 
-    # 扫现存引用
+    # Scan surviving references
     findings: list[tuple[Path, int, str, str]] = []  # file, line, import, deleted_mod
     for fpath, line, target in _imports_in_repo(dirs):
         for dm in deleted_mods:
@@ -159,20 +165,20 @@ def main() -> int:
                 break
 
     if not findings:
-        print("✓ 无引用残留 (reorg 干净)")
+        print("✓ no stale references (reorg is clean)")
         return 0
 
-    print(f"✗ 发现 {len(findings)} 处引用残留 (caller 引用了 reorg 删的 module):")
+    print(f"✗ found {len(findings)} stale references (callers referencing modules deleted by the reorg):")
     seen: set[tuple[str, int, str]] = set()
     for fpath, line, target, dm in findings:
         key = (str(fpath), line, target)
         if key in seen:
             continue
         seen.add(key)
-        print(f"  {fpath}:{line}  import {target!r}  →  删 {dm!r}")
+        print(f"  {fpath}:{line}  import {target!r}  →  deleted {dm!r}")
     print()
-    print(f"修法: 删 caller 引用, 或 import 别名 (e.g. compat wrapper).")
-    print(f"      跑 pyright 也可捕: pyright {' '.join(dirs)} --level error")
+    print(f"Fix: remove the caller reference, or use an import alias (e.g. a compat wrapper).")
+    print(f"      pyright also catches this: pyright {' '.join(dirs)} --level error")
     return 1
 
 

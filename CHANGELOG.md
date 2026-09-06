@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-09-06
+
+### Added
+- `repo-medic` bare invocation (`/repo-medic` with no argument) now prints a
+  language-aware help block (English or 简体中文, matching the conversation)
+  instead of guessing a sub-skill
+
+### Fixed
+- `py-improve/scripts/reorg_drift.py` — docstring/help/output translated to
+  English (last untranslated shipped script); stale `scripts/audit/` path in
+  docstring corrected
+- `evolve` SKILL.md description + Usage wording aligned with the
+  additive-only/upgrade-safe injection design; Contents table now lists
+  `templates/lessons-skill.md`
+
 ## [0.5.0] — 2026-09-06
 
 ### Added
