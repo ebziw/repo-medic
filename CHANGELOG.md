@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.5] — 2026-09-07
+
+### Added
+- **New companion skill: `repo-medic-lessons`** — distilled hard-won lessons
+  accumulated by `/evolve` from real projects. Bucketed per sub-skill
+  (`py-improve` / `config-base` / `db-tweak`). Lives outside any single skill
+  package so upgrades never erase them. 8 lessons covering 6 root-cause classes:
+  - py-improve: `handoff-receiver-pair-check` / `cross-stage-enum-sync` /
+    `third-party-api-params-audit` / `sql-string-concat-no-inline-comments`
+  - config-base: `runtime-evidence-chain` / `import-path-observability` /
+    `paid-api-cost-from-official-docs`
+  - db-tweak: `failure-loop-conn-budget`
+- Each lesson follows Symptom / Cause / Fix / Sources / Frequency / Triggers /
+  Related hard constraints. Trigger-keyword index in SKILL.md for fast lookup.
+
+### Source
+- Lessons distilled from fleet `kb@kb` `~/.claude/skills/repo-medic-lessons/`
+  output (8 lessons written by `/evolve` on 2026-09-06, after user's command
+  to "把它们写下来的坑和避坑 prompt 取回来，蒸馏提炼抽象升华，合并到 repo-medic").
+- Two clusters merged into single principles: handoff-receiver + cross-stage-enum
+  → "implicit contract must be explicit"; sys.path + systemd cat → "runtime
+  evidence chain"; paid-api-params + paid-cost → "third-party doc audit".
+
 ## [0.5.4] — 2026-09-06
 
 ### Fixed

@@ -197,8 +197,9 @@ Per-project specifics still belong in that project's own work-notes — evolve i
 - [x] v0.2.1 — Windows compatibility (.cmd/.bat/.com + GBK fallback)
 - [x] v0.3.0 — `evolve` sub-skill (self-distill pitfalls)
 - [x] v0.4.0 — Community files (CONTRIBUTING, CoC, issue/PR templates) + README polish
+- [x] v0.5.5 — Companion skill `repo-medic-lessons` ships 8 distilled lessons (6 root-cause classes) from fleet `/evolve` output ← **current**
 - [x] v0.5.0 — Fully bilingual docs: English runtime skills + 简体中文 mirror (`docs/zh/`)
-- [ ] v0.5.1 — Language-aware `/repo-medic` help + evolve polish ← **current**
+- [x] v0.5.1 — Language-aware `/repo-medic` help + evolve polish
 - [ ] v0.6.0 — CI workflow (ruff + mypy + smoke tests on PR)
 - [ ] v1.0.0 — Stable API + first external user feedback round
 
