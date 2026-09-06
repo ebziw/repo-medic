@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-09-06
+
+### Fixed
+- `evolve/scripts/extract.py` produced 0 candidates from a repo full of fix
+  commits. Three independent causes:
+  1. the frequency gate dropped every single-occurrence commit candidate,
+     killing the whole commit path (kept only if the same subject repeated)
+  2. commit-pitfall keywords missed common Chinese subjects (修复/回滚/报错/…)
+  3. `--since=30d` — git silently returns EMPTY output for the `Nd` shorthand
+     (must be `N.days`); input is now normalized, default stays `7d`
+  Commit candidates now kept on keyword-score >= 2 or repetition, capped at
+  `--max-candidates 10`; verified on two real repos (50 commits → 11 candidates)
+
 ## [0.5.1] — 2026-09-06
 
 ### Added

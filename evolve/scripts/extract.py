@@ -18,9 +18,12 @@ WORK_NOTE_FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 WORK_NOTE_SYMPTOM = re.compile(r"\*\*Symptom\*\*:\s*(.+)")
 WORK_NOTE_CAUSE = re.compile(r"\*\*Cause\*\*:\s*(.+)")
 WORK_NOTE_FIX = re.compile(r"\*\*Fix\*\*:\s*(.+)")
+# Functional Chinese keywords retained deliberately: they match Chinese commit
+# subjects (修复/回滚/报错...) which are common in real repos.
 COMMIT_PITFALL_KEYWORDS = (
     "踩坑", "bug", "fix", "BUG", "FIX", "教训", "注意", "warn", "error",
-    "wrong", "broken", "revert", "rollback", "lesson",
+    "wrong", "broken", "revert", "rollback", "lesson", "hotfix",
+    "修复", "修正", "修补", "回滚", "回退", "报错", "异常", "失败", "崩溃", "坑",
 )
 
 
@@ -37,6 +40,7 @@ class Lesson:
     triggers: list[str] = field(default_factory=list)
     references: list[int] = field(default_factory=list)  # 14 hard constraints
     confidence: str = "low"
+    score: int = 0  # commit pitfall-keyword hits (work-note lessons keep 0; gated by confidence instead)
 
     def to_markdown(self) -> str:
         src = "\n".join(f"- `{s}`" for s in self.sources) or "- (none)"
@@ -56,8 +60,18 @@ class Lesson:
         )
 
 
+_SINCE_SHORTHAND = re.compile(r"^(\d+)\s*d(ays?)?$", re.I)
+
+
+def _normalize_since(since: str) -> str:
+    """git --since rejects '30d' silently (empty output); convert Nd -> N.days."""
+    m = _SINCE_SHORTHAND.match(since.strip())
+    return f"{m.group(1)}.days" if m else since
+
+
 def _git_log(repo: Path, since: str, max_commits: int) -> list[dict]:
     """Return list of commits: {hash, subject, body, date}."""
+    since = _normalize_since(since)
     fmt = "%H%n%s%n%b%n--END--"
     cmd = [
         "git", "-C", str(repo), "log",
@@ -205,12 +219,21 @@ def cmd_extract(args: argparse.Namespace) -> int:
             frequency=1,
             sources=[f"commit:{c['hash']}"],
             confidence="low",
+            score=score,
         ))
 
     merged = _merge(lessons)
 
-    # frequency gate: only keep >= 2 OR explicit work-note
-    kept = [ls for ls in merged if ls.frequency >= 2 or ls.sources[0].startswith("work-note:")]
+    # Gate: work-note lessons always kept (explicit Symptom/Cause/Fix = med signal).
+    # Commit lessons are low signal: keep only keyword-score >= 2 OR repeated (freq >= 2),
+    # then cap the remaining commit-only candidates so the GATE review stays ≤ 10-ish items.
+    kept = [ls for ls in merged
+            if ls.confidence != "low" or ls.frequency >= 2 or ls.score >= 2]
+    commit_kept = [ls for ls in kept if ls.confidence == "low"]
+    if len(commit_kept) > args.max_candidates:
+        commit_kept = sorted(commit_kept, key=lambda x: (-x.score, -x.frequency))[:args.max_candidates]
+        kept = [ls for ls in kept if ls.confidence != "low"] + commit_kept
+    kept.sort(key=lambda x: (-x.frequency, -x.score))
 
     if args.json:
         print(json.dumps([asdict(ls) for ls in kept], indent=2, ensure_ascii=False))
@@ -226,7 +249,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         f"- work-notes found: {len(wn_lessons)}",
         f"- total commits scanned: {len(commits)}",
         f"- candidates after dedup: {len(merged)}",
-        f"- candidates after gate (freq>=2 OR work-note): {len(kept)}",
+        f"- candidates after gate (work-note OR freq>=2 OR score>=2, commit cap {args.max_candidates}): {len(kept)}",
         f"",
         "---",
         "",
@@ -255,8 +278,9 @@ def cmd_extract(args: argparse.Namespace) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description="evolve: extract lesson candidates from project history")
     p.add_argument("--repo", default=".", help="project root (default: cwd)")
-    p.add_argument("--since", default="7d", help="git log --since (default 7d)")
+    p.add_argument("--since", default="7d", help="git log --since (default 7d; Nd shorthand normalized to N.days)")
     p.add_argument("--max-commits", type=int, default=200, help="max commits to scan (default 200)")
+    p.add_argument("--max-candidates", type=int, default=10, help="cap on low-confidence commit candidates (default 10)")
     p.add_argument("--output", default=None, help="write markdown to file (default: stdout)")
     p.add_argument("--json", action="store_true", help="output JSON instead of markdown")
     args = p.parse_args()
