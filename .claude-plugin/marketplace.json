@@ -1,0 +1,26 @@
+{
+  "name": "ebziw-repo-medic",
+  "owner": {
+    "name": "haomem contributors",
+    "email": "noreply@example.com"
+  },
+  "metadata": {
+    "description": "Self-contained Claude Code skill toolkit for daily code maintenance: refactoring, deduplication, silent-error scanning, directory/document reorganization, PostgreSQL tuning, Vue 3 frontend improvements.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "repo-medic",
+      "description": "Meta router + 4 self-contained sub-skills for code maintenance (py-improve / doc-reorg / db-tweak / vue-improve). Each sub-skill sharable via cp -r.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./repo-medic",
+        "./py-improve",
+        "./doc-reorg",
+        "./db-tweak",
+        "./vue-improve"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: repo-medic
-description: 仓库代码维护 skill 包入口。路由到子 skill：Python 代码改进 (py-improve) / 文档目录整理 (doc-reorg) / 数据库调优 (db-tweak) / Vue 前端改进 (vue-improve)。用于日常代码重构、字典去重、静默吞错、目录归档、PG 调优、Vue 组件审查等场景。
+description: 仓库代码维护 skill 包入口。路由到子 skill：Python 代码改进 (py-improve) / 文档目录整理 (doc-reorg) / 数据库调优 (db-tweak) / Vue 前端改进 (vue-improve)。用于日常代码重构、字典去重、静默吞错、目录归档、PG 调优、Vue 组件审查等场景。Triggers: repo-medic, code maintenance, 路由, route, meta skill, 代码维护, 项目日常
 metadata:
   type: meta
   scope: public

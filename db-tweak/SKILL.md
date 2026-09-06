@@ -1,6 +1,6 @@
 ---
 name: db-tweak
-description: PostgreSQL 数据库调优 — 慢查询优化 / 索引设计 / 9 铁律 / 7 phase / 8 模式 / 退场流水线（PLAN_DELETE_ rename）。包含 plan-delete.sh、audit-plan-delete.sh、config_drift.py。用于触发：PG 慢查询、索引、EXPLAIN、VACUUM、DROP COLUMN/TABLE、SQL 调优、PG schema 变更。
+description: PostgreSQL 数据库调优 — 慢查询优化 / 索引设计 / 9 铁律 / 7 phase / 8 模式 / 退场流水线（PLAN_DELETE_ rename）。包含 plan-delete.sh、audit-plan-delete.sh、config_drift.py。Triggers: PostgreSQL, PG, 索引, EXPLAIN, VACUUM, 慢查询, DROP, schema, 调优, plan-delete, migration, database tune, query optimization, bloat
 metadata:
   type: domain
   scope: public

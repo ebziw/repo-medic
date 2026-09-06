@@ -1,6 +1,6 @@
 ---
 name: vue-improve
-description: Vue 3 + TypeScript + Vite + Pinia 前端代码改进。包含组件设计、setup TDZ 坑、watchEffect 陷阱、Pinia store 模式、Vite build 优化、chunk hash 部署。用于触发：Vue 组件审查、Pinia store、setup 函数、watch / watchEffect、Vite 打包优化、前端 bundle 分析。
+description: Vue 3 + TypeScript + Vite + Pinia 前端代码改进。包含组件设计、setup TDZ 坑、watchEffect 陷阱、Pinia store 模式、Vite build 优化、chunk hash 部署。Triggers: Vue, 组件, Pinia, Vite, setup, watch, watchEffect, ref, 路由, bundle, chunk, TypeScript, TS, 前端, frontend, SPA, reactivity
 metadata:
   type: domain
   scope: public

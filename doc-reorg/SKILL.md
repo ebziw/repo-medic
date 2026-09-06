@@ -1,6 +1,6 @@
 ---
 name: doc-reorg
-description: 目录 + 文档 + 文件一次性整理 — git mv 重命名、tmp 归档、脚本归类、debug 产物清理、文档分类归档（MRD/PRD/ARCH/DESIGN/TEST/RESEARCH）、env.md/deploy.md 同步。用于触发：目录整理、文件归档、tmp 清理、文档分类、README 整理、env/deploy 文档同步。
+description: 目录 + 文档 + 文件一次性整理 — git mv 重命名、tmp 归档、脚本归类、debug 产物清理、文档分类归档（MRD/PRD/ARCH/DESIGN/TEST/RESEARCH）、env.md/deploy.md 同步。Triggers: 目录整理, 文件归档, tmp 清理, 文档分类, README, 模板, env, deploy, git mv, file reorganization, document classification, archive
 metadata:
   type: domain
   scope: public
