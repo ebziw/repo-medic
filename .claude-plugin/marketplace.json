@@ -20,7 +20,8 @@
         "./doc-reorg",
         "./db-tweak",
         "./vue-improve",
-        "./config-base"
+        "./config-base",
+        "./evolve"
       ]
     }
   ]

@@ -11,6 +11,7 @@ A self-contained Claude Code skill toolkit for daily code maintenance: refactori
 | [`db-tweak`](./db-tweak/) | PostgreSQL: slow query, indexes, 9 iron rules, 7-phase methodology, drop retirement pipeline |
 | [`vue-improve`](./vue-improve/) | Vue 3 + TypeScript + Vite + Pinia code improvements |
 | [`config-base`](./config-base/) | Toolchain bootstrap: detect + install + upgrade dependencies (ruff/mypy/codegraph/node/psql) |
+| [`evolve`](./evolve/) | Self-evolve: scan project pitfalls → distill lessons → inject into sub-skills (avoid repeating mistakes) |
 | [`repo-medic`](./repo-medic/SKILL.md) | Meta router — routes prompt to sub-skill |
 
 Each sub-skill is **self-contained**: `cp -r <sub-skill> ~/.claude/skills/` works as-is.

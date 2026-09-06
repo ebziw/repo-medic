@@ -11,6 +11,7 @@
 | [`db-tweak`](./db-tweak/) | PostgreSQL：慢查询、索引、9 铁律、7 phase、退场流水线 |
 | [`vue-improve`](./vue-improve/) | Vue 3 + TS + Vite + Pinia 前端改进 |
 | [`config-base`](./config-base/) | 工具链 bootstrap：检测 + 安装 + 升级依赖（ruff/mypy/codegraph/node/psql） |
+| [`evolve`](./evolve/) | 自进化：扫描项目踩的坑 → 蒸馏经验 → 注入 sub-skill（避免重蹈覆辙） |
 | [`repo-medic`](./repo-medic/SKILL.md) | Meta 路由 — 根据 prompt 关键词路由到子 skill |
 
 每个子 skill **自包含**：`cp -r <sub-skill> ~/.claude/skills/` 直接可用。
