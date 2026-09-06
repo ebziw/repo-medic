@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="repo-medic social preview: skill toolkit for Claude Code">
+  <title>repo-medic</title>
+  <desc>1280x640 social preview: left side shows logo + name + tagline, right side lists the seven sub-skills.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="#0f172a" />
+      <stop offset="0.6" stop-color="#1e293b" />
+      <stop offset="1"  stop-color="#334155" />
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#1e293b" />
+      <stop offset="1"  stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg)" />
+
+  <!-- Left: logo + name + tagline -->
+  <g transform="translate(80, 130)">
+    <!-- Logo (mini medical cross + braces, white version) -->
+    <circle cx="80" cy="80" r="80" fill="#dc2626" />
+    <rect x="65" y="40" width="30" height="80" rx="3" fill="#ffffff" />
+    <rect x="35" y="70" width="90" height="20" rx="3" fill="#ffffff" />
+    <text x="-2" y="100" font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="80" font-weight="700" fill="#dc2626">{</text>
+    <text x="142" y="100" font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="80" font-weight="700" fill="#dc2626">}</text>
+
+    <!-- Wordmark -->
+    <text x="0" y="240" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+          font-size="68" font-weight="800" fill="#ffffff">repo-medic</text>
+
+    <!-- Tagline -->
+    <text x="0" y="295" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+          font-size="26" font-weight="400" fill="#cbd5e1">
+      Self-contained Claude Code skill toolkit
+    </text>
+    <text x="0" y="328" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+          font-size="26" font-weight="400" fill="#cbd5e1">
+      for daily code maintenance
+    </text>
+
+    <!-- Badges -->
+    <g transform="translate(0, 370)" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600">
+      <rect x="0"   y="0" width="120" height="32" rx="6" fill="#dc2626" />
+      <text x="60"  y="22" text-anchor="middle" fill="#ffffff">Apache 2.0</text>
+      <rect x="135" y="0" width="150" height="32" rx="6" fill="#3b82f6" />
+      <text x="210" y="22" text-anchor="middle" fill="#ffffff">Claude Code</text>
+      <rect x="300" y="0" width="100" height="32" rx="6" fill="#10b981" />
+      <text x="350" y="22" text-anchor="middle" fill="#ffffff">Python 3.12+</text>
+    </g>
+
+    <!-- URL -->
+    <text x="0" y="445" font-family="ui-monospace, 'SF Mono', Consolas, monospace"
+          font-size="20" font-weight="500" fill="#94a3b8">
+      github.com/ebziw/repo-medic
+    </text>
+  </g>
+
+  <!-- Right: 7 sub-skill cards -->
+  <g transform="translate(720, 100)" font-family="ui-sans-serif, system-ui, Sans-Serif">
+    <text x="0" y="0" font-size="22" font-weight="600" fill="#94a3b8" letter-spacing="2">7 SUB-SKILLS</text>
+
+    <!-- Card 1: meta -->
+    <g transform="translate(0, 30)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#a78bfa" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">repo-medic</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Meta router — routes prompts to sub-skills</text>
+    </g>
+
+    <!-- Card 2: py-improve -->
+    <g transform="translate(0, 95)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#22d3ee" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">py-improve</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Python code · dedup · silent-error · CR</text>
+    </g>
+
+    <!-- Card 3: doc-reorg -->
+    <g transform="translate(0, 160)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#fbbf24" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">doc-reorg</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Directory + document + file reorg</text>
+    </g>
+
+    <!-- Card 4: db-tweak -->
+    <g transform="translate(0, 225)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#34d399" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">db-tweak</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">PostgreSQL tuning · 9 iron rules</text>
+    </g>
+
+    <!-- Card 5: vue-improve -->
+    <g transform="translate(0, 290)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#42b883" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">vue-improve</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Vue 3 + TS + Vite + Pinia code</text>
+    </g>
+
+    <!-- Card 6: config-base -->
+    <g transform="translate(0, 355)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#f59e0b" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">config-base</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Toolchain bootstrap · detect + install</text>
+    </g>
+
+    <!-- Card 7: evolve -->
+    <g transform="translate(0, 420)">
+      <rect width="490" height="56" rx="8" fill="url(#card)" stroke="#475569" stroke-width="1" />
+      <circle cx="28" cy="28" r="12" fill="#f472b6" />
+      <text x="52" y="22" font-size="18" font-weight="700" fill="#ffffff">evolve</text>
+      <text x="52" y="42" font-size="13" fill="#94a3b8">Self-distill project pitfalls</text>
+    </g>
+  </g>
+</svg>
