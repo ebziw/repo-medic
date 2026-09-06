@@ -94,11 +94,87 @@ def _resolve_cmd(cmd: list[str]) -> tuple[list[str] | str, dict]:
     return cmd, {"encoding": "utf-8", "errors": "replace"}
 
 
+def _python_module_invocation(module: str) -> list[str] | None:
+    """Return `python -m <module>` cmd if the module imports cleanly, else None.
+
+    Used as a fallback probe for tools like pytest/mypy/bandit/pyright that are
+    installed in a venv but lack a PATH binary. Returns None when no
+    python3/python is on PATH, when import fails, or when the module is unknown.
+    """
+    for py in ("python3", "python"):
+        if shutil.which(py) is None:
+            continue
+        try:
+            r = subprocess.run(
+                [py, "-c", f"import {module}"],
+                capture_output=True, text=True, timeout=5,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        if r.returncode == 0:
+            return [py, "-m", module]
+    return None
+
+
+def _is_alias_shadow(name: str) -> bool:
+    """True if `name` is a shell alias on POSIX (typically masking real binary)."""
+    if sys.platform == "win32":
+        return False
+    try:
+        r = subprocess.run(
+            ["bash", "-ic", f"type {name} 2>/dev/null"],
+            capture_output=True, text=True, timeout=3,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return r.stdout.lstrip().startswith(f"{name} is aliased to")
+
+
+# Python entry-point module names — used to recover tools installed via
+# `pip install` but lacking a PATH binary (venv-style installs).
+_PYTHON_TOOL_MODULES = {
+    "pytest": "pytest",
+    "mypy": "mypy",
+    "bandit": "bandit",
+    "pyright": "pyright",
+    "ruff": "ruff",
+    "vulture": "vulture",
+    "radon": "radon",
+    "mcp": "mcp",
+}
+
+
 def _check(tool: Tool) -> dict:
     """Run tool's check_cmd, return status dict."""
     cmd, run_kwargs = _resolve_cmd(tool.check_cmd)
     exe = cmd[0] if isinstance(cmd, list) else cmd.split()[0].strip('"')
+
+    # Fallback 1: python tools installed in a venv but not on PATH.
+    # shutil.which sees no binary → recover via `python -m <module>`.
     if shutil.which(exe) is None:
+        module = _PYTHON_TOOL_MODULES.get(tool.name)
+        if tool.category == "python" and module:
+            inv = _python_module_invocation(module)
+            if inv is not None:
+                # Replace binary name with module invocation
+                cmd = inv + (cmd[1:] if isinstance(cmd, list) else cmd.split()[1:])
+                cmd, run_kwargs = _resolve_cmd(cmd)
+        # Fallback 2: shell alias shadows a real binary on PATH
+        elif _is_alias_shadow(tool.name):
+            pass  # fall through to bare shutil.which result below
+
+    if shutil.which(exe) is None:
+        # Final fallback for system tools: try common absolute locations.
+        # Avoids false MISSING on minimal containers (rg, tree).
+        if tool.category == "system" and sys.platform != "win32":
+            for guess in ("/usr/bin", "/usr/local/bin", "/bin"):
+                cand = f"{guess}/{tool.name}"
+                if shutil.which(cand):
+                    cmd = [cand] + cmd[1:]
+                    cmd, run_kwargs = _resolve_cmd(cmd)
+                    break
+
+    if shutil.which(cmd[0] if isinstance(cmd, list) else cmd.split()[0].strip('"')) is None:
         return {"name": tool.name, "installed": False, "version": None, "ok": False, "category": tool.category, "optional": tool.optional}
 
     try:
