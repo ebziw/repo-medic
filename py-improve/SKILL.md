@@ -1,0 +1,64 @@
+---
+name: py-improve
+description: Python 代码改进 — god-fn 拆分 / 死代码删除 / 重复方法合并 / 字典常量去重 / 静默吞错修复 / 日志可观测性 / 合入前 CR。包含 ruff/vulture/bandit/radon/pyright MCP 工具链。用于触发：重构、代码整理、god function、死代码、字典去重、静默吞错、CR、code review。
+metadata:
+  type: domain
+  scope: public
+---
+
+# py-improve — Python 代码改进
+
+self-contained skill。复制整个目录即可分享给其他项目。
+
+## 包含
+
+| 路径 | 内容 |
+|---|---|
+| `references/code-refactor.md` | god-fn 拆分 + 死代码 7 步 + TDD 4 模式 + YAGNI |
+| `references/code-review-checklist.md` | 合入前机械规则 + no-silent-swallow P0 |
+| `references/logging-observability.md` | 静默吞错扫描命令 + 修法模板 |
+| `references/dict-dedup.md` | 字典/常量去重 4 类问题分类 + Phase 0-5 |
+| `references/dict-dedup-case-levelcfg.md` | _LEVEL_CFG CONFLICT 案例教学 |
+| `scripts/silent_swallow.py` | 静默吞错扫描器 |
+| `scripts/reorg_drift.py` | 引用残留扫描（删 module 后检查 caller） |
+| `mcp_servers/python_refactor_server.py` | MCP server: ruff/vulture/bandit/radon/pyright |
+
+## 使用
+
+```bash
+# 静默吞错扫描
+python ~/.claude/skills/py-improve/scripts/silent_swallow.py src/
+
+# 引用残留
+python ~/.claude/skills/py-improve/scripts/reorg_drift.py
+
+# MCP 工具（注册到 ~/.claude/settings.json）
+# 见 mcp_servers/python_refactor_server.py
+```
+
+## 14 硬约束（跨子工作流通用）
+
+1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 stdlib + 已装库。不为假设风险提前加 try/except / retry / fallback / 抽象层。真出问题再补。
+2. **commit 颗粒度**: 1 逻辑单元 = 1 commit，独立可回滚。
+3. **默认回滚 = rsync 备份还原** (无损)。**绝对禁止 `git reset --hard`**。
+4. **死代码证明需 7 步 checklist**: 静态引用 + 文本搜索 + 框架注册 + export + 动态调用 + 测试/生成 + 用户签字。0 caller grep ≠ 证明。
+5. **TDD 按场景分 4 模式**: Characterization / Red-Green / Structural (7 步 + 全 build/test) / Regression。
+6. **commit 前全量测试全绿**，不破 CI。
+7. **prod 锁定**: 不动线上代码，owner 显式授权才动。
+8. **宁缺勿伪**: 不确定的事实留 TODO，不编。校验靠 grep / codegraph / pyright 实测。
+9. **DB 删除必走退场流水线**: DROP 前 RENAME → PLAN_DELETE_<原名> → 1+ 周测试 → user 审。
+10. **批量任务先测最小**: 任何批量操作先选最小样本 (1-10) 跑通 + 计时，按比例推全量耗时。**禁止直接开最大集合**。
+11. **daemon / 服务代码改动 4 步独立**: ①本地 Edit ②本地 py_compile 验证 ③scp 上传 + 清 __pycache__ ④systemctl restart + pgrep 验证 PID 变了。**不链式 restart && smoke**。
+12. **buffer 所有权被转移**: JS postMessage / getDocument({data}) / Python buffer protocol → 原 buffer 被 detach。缓存方必须保留副本，每次传递前 bytes.slice(0) / np.array(..., copy=True)。
+13. **hash 化构建产物必须整目录同步**: 前端 chunk 名带 hash — 只推改的文件 → index.html 引用新 hash → 缺 chunk → MIME text/html 404。部署后 curl 验证每个 entry/chunk 都 200。
+14. **部署/发布后必须验证实际生效产物标识**: 脚本输出 "✓ done" ≠ 部署成功。验证 = 请求线上 URL 看新标识 (hash/pid/build-check/version)。
+
+## 关联
+
+- `/repo-medic` — meta 入口
+- `/doc-reorg` — 重构后目录归档
+- `/db-tweak` — DB 相关调用方审查
+
+## 仓库
+
+github.com/ebziw/repo-medic — Apache-2.0。包含完整 references + scripts + MCP server。
