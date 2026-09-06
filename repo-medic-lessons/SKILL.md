@@ -26,12 +26,21 @@ This companion skill ships lessons accumulated from real projects via `/evolve`.
 - [L2 cross-stage-enum-sync](lessons/py-improve/cross-stage-enum-sync.md) — new source/status enum values must sync all stage whitelists (双向死锁 case)
 - [L3 third-party-api-params-audit](lessons/py-improve/third-party-api-params-audit.md) — every param of paid API needs official-doc audit + A/B test (#1 YAGNI)
 - [L4 sql-string-concat-no-inline-comments](lessons/py-improve/sql-string-concat-no-inline-comments.md) — Python string concat kills `--` comments; either `\n` or move comment to Python layer
+- [L9 silent-fallback-grade-not-uniform](lessons/py-improve/silent-fallback-grade-not-uniform.md) — critical deps must raise, not silently fallback; expected chains use debug logging + degrade flag (#8)
+- [L10 perf-measure-cold-and-breakdown](lessons/py-improve/perf-measure-cold-and-breakdown.md) — measure cold query separately; add per-stage timing BEFORE tuning params
+- [L11 god-fn-split-requires-characterization](lessons/py-improve/god-fn-split-requires-characterization.md) — write characterization tests to lock undocumented behavior before any split (#6)
+- [L12 stale-test-vs-impl-judgment](lessons/py-improve/stale-test-vs-impl-judgment.md) — find evolution evidence first; documented evolution → fix test, undocumented drift → check git history (#8)
+- [L13 ooxml-strict-mode-references](lessons/py-improve/ooxml-strict-mode-references.md) — python-pptx can open ≠ PowerPoint can open; manual OOXML edits must check rels/Content_Types integrity (#14)
 
 ### config-base
 
 - [L5 runtime-evidence-chain](lessons/config-base/runtime-evidence-chain.md) — for live behavior, trust `systemctl cat` + `ps aux` + `/proc/<pid>/cwd`, not unit main file (#14)
 - [L6 import-path-observability](lessons/config-base/import-path-observability.md) — when "single import OK, combined fails", print `sys.modules[X].__file__`; ban hardcoded absolute sys.path inserts
 - [L7 paid-api-cost-from-official-docs](lessons/config-base/paid-api-cost-from-official-docs.md) — credit multipliers + failure-billing + custom-feature triggers must come from official pricing, not vendor self-claims
+- [L14 long-lived-service-must-be-unit](lessons/config-base/long-lived-service-must-be-unit.md) — bare nohup dies silently; systemd --user unit with `Restart=on-failure` for any long-running service (#14)
+- [L15 pkill-f-can-self-match](lessons/config-base/pkill-f-can-self-match.md) — `pkill -f` matches the calling bash's own argv → exit 255 self-kill; use `pkill -x` or pgrep-filter (#1)
+- [L16 third-party-config-must-replicate-prod-input](lessons/config-base/third-party-config-must-replicate-prod-input.md) — sample benchmarks lie; test with prod-shape inputs (long docs, unicode) before declaring green (#14)
+- [L17 shared-backend-change-verify-each-consumer](lessons/config-base/shared-backend-change-verify-each-consumer.md) — `/health` 200 ≠ contract; verify every consumer's call shape after backend switch + invalidate cache (#14)
 
 ### db-tweak
 
@@ -39,8 +48,8 @@ This companion skill ships lessons accumulated from real projects via `/evolve`.
 
 ## Trigger keywords
 
-- **py-improve**: source whitelist / status enum / deadlock / claim / handoff / wait_for / API param audit / SQL comment / string concat
-- **config-base**: sys.path / import drift / systemctl cat / override / drop-in / credit multiplier / pricing / official docs
+- **py-improve**: source whitelist / status enum / deadlock / claim / handoff / wait_for / API param audit / SQL comment / string concat / silent fallback / non-fatal except / degrade flag / cold query / per-stage timing / god function / characterization / stale test / threshold drift / evolution evidence / pptx / OOXML strict / PowerPoint / notesMaster
+- **config-base**: sys.path / import drift / systemctl cat / override / drop-in / credit multiplier / pricing / official docs / nohup / systemd unit / Restart=on-failure / long-lived service / pkill -f / self-match / exit 255 / llama.cpp / n_ubatch / batch size / rerank / prod-input / schema contract / switch backend / cache invalidation
 - **db-tweak**: too many clients / connection pool / failure loop / backoff / pg_stat_activity
 
 ## How lessons are written

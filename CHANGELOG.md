@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.6] — 2026-09-07
+
+### Added
+- **`repo-medic-lessons`**: 9 more lessons (v0.5.5 had 8, now 17 total), distilled
+  from `kb-104@local` (`Administrator` on this machine) `/evolve` output
+  (2026-09-06 search-cold-query-iter3 / qa-rerank-silent-timeout /
+  embed-contract / maybe-rerank-split / ppt-notes-chain / stale-test batch).
+- 5 py-improve: `silent-fallback-grade-not-uniform` (freq 3 — highest in batch) /
+  `perf-measure-cold-and-breakdown` / `god-fn-split-requires-characterization` /
+  `stale-test-vs-impl-judgment` / `ooxml-strict-mode-references`
+- 4 config-base: `long-lived-service-must-be-unit` / `pkill-f-can-self-match` /
+  `third-party-config-must-replicate-prod-input` /
+  `shared-backend-change-verify-each-consumer`
+- Trigger keyword index in SKILL.md expanded for new lessons
+
+### Source
+- Local `~/.claude/skills/repo-medic-lessons/` had 10 lessons (different from
+  kb@kb ECS); missed in v0.5.5 because local fleet scan used `ls` filter that
+  hid directory. Second-pass `find` revealed.
+- Two new clusters merged into single principles: silent-fallback + bare-nohup
+  → "service longevity + observability"; third-party-config + ooxml-strict →
+  "real consumer validation, not SDK pass".
+
 ## [0.5.5] — 2026-09-07
 
 ### Added
