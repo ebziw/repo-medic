@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# audit-plan-delete.sh — 列所有待审 PLAN_DELETE_*, 显示提议日期 + 距今多少天
+# audit-plan-delete.sh — list all PLAN_DELETE_* pending review, showing the proposed date + days from now
 #
-# v0.7.5 恢复: 自 kb db-doctor 归档 (db-doctor.merged-into-project-doctor.20260902)
-# 迁入 project-doctor/scripts/db/ (位置对齐 kb@kb merge), work-note 路径已泛化
-# (与 plan-delete.sh 同默认, 可用 WORKNOTE_DIR 覆盖).
+# v0.7.5 restored: from the kb db-doctor archive (db-doctor.merged-into-project-doctor.20260902)
+# moved into project-doctor/scripts/db/ (location aligned with kb@kb merge); work-note path generalized
+# (same default as plan-delete.sh, override with WORKNOTE_DIR).
 
 set -euo pipefail
 
 WORKNOTE_DIR="${WORKNOTE_DIR:-$HOME/.cache/project-doctor/pending-drops}"
 
 if [[ ! -d "$WORKNOTE_DIR" ]] || [[ -z "$(ls -A "$WORKNOTE_DIR" 2>/dev/null)" ]]; then
-  echo "✓ 无 pending PLAN_DELETE_* 待审"
+  echo "✓ no pending PLAN_DELETE_* awaiting review"
   exit 0
 fi
 
@@ -54,13 +54,13 @@ for f in "$WORKNOTE_DIR"/*.md; do
   PROPOSE_TS=$(date -u -d "$PROPOSE_DATE" +%s)
   DAYS_LEFT=$(( (PROPOSE_TS - NOW) / 86400 ))
   if [[ $DAYS_LEFT -le 0 ]]; then
-    echo "  ⏰ $TARGET — user 审通过后可真 DROP"
+    echo "  ⏰ $TARGET — real DROP allowed after user approval"
   fi
 done
 
 echo ""
-echo "DROP 前必做 (铁律 3):"
-echo "  1. FK 双向 (pg_constraint confrelid+conrelid)"
-echo "  2. View 依赖 (pg_depend)"
-echo "  3. 消费者 grep 代码 + 应用错误日志"
-echo "  4. 备份 DB (项目约定备份根, 如 ~/backup/db/<date>)"
+echo "Mandatory before DROP (iron rule 3):"
+echo "  1. FK both directions (pg_constraint confrelid+conrelid)"
+echo "  2. View dependencies (pg_depend)"
+echo "  3. grep code for consumers + application error logs"
+echo "  4. back up the DB (project-conventioned backup root, e.g. ~/backup/db/<date>)"

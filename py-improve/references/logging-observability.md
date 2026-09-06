@@ -1,43 +1,43 @@
-# Logging Observability Subflow (project-doctor 子工作流)
+# Logging Observability Subflow (project-doctor sub-workflow)
 
-> 触发: 用户说 "日志可观测性" / "结构化日志" / "日志吞错" / "silent error" / "logging audit" / "排查加日志"
-> 范围: 仅日志相关 (吞错检测 + 结构化 + 关键路径状态点), 不改业务逻辑
-> **核心原则**: 日志必须能严格反映程序是否按设计运行. **决不静默吞错**. 排查时不靠猜, 靠 grep.
+> Trigger: user says "log observability" / "structured logging" / "swallowed errors" / "silent error" / "logging audit" / "add logs for troubleshooting"
+> Scope: logging only (swallowed-error detection + structuring + critical-path state points); no business-logic changes
+> **Core principle**: logs must strictly reflect whether the program runs as designed. **Never swallow errors silently**. Troubleshoot by grep, not by guessing.
 
-## 目录
+## Table of Contents
 
-1. [核心铁律](#核心铁律)
-2. [Phase 1: 吞错检测](#phase-1-吞错检测)
-3. [Phase 2: 关键路径状态点](#phase-2-关键路径状态点)
-4. [Phase 3: 结构化日志升级](#phase-3-结构化日志升级)
-5. [Phase 4: 日志级别规范](#phase-4-日志级别规范)
-6. [Phase 5: 验证](#phase-5-验证)
+1. [Core Iron Rules](#core-iron-rules)
+2. [Phase 1: Swallowed-Error Detection](#phase-1-swallowed-error-detection)
+3. [Phase 2: Critical-Path State Points](#phase-2-critical-path-state-points)
+4. [Phase 3: Structured Logging Upgrade](#phase-3-structured-logging-upgrade)
+5. [Phase 4: Log Level Conventions](#phase-4-log-level-conventions)
+6. [Phase 5: Verification](#phase-5-verification)
 
 ---
 
-## 核心铁律
+## Core Iron Rules
 
-> **静默吞错 = 排查噩梦**. 当程序吞掉异常不记录, 出问题时无任何线索, debug 时只能 "猜哪里坏了".
+> **Silently swallowed errors = a troubleshooting nightmare**. When a program swallows exceptions without recording them, a failure leaves zero clues and debugging degenerates into "guessing what broke".
 >
-> **正确做法**: 每个 except 必须记录 (含 traceback + 上下文), 让程序"说出"它看到了什么.
+> **Correct approach**: every except must be logged (with traceback + context) so the program "speaks" what it saw.
 
-**反模式 (0容忍)**:
-- ❌ `try: ... except: pass` — 完全吞掉
-- ❌ `try: ... except Exception: continue` — 吞掉不记
-- ❌ `try: ... except: return None` — 吞掉, 调用方不知
-- ❌ `print(...)` 在 prod 路径代替 logger — 无 level / 无时间 / 无 location
-- ❌ 关键路径无任何 logger — 出事只能复现
+**Anti-patterns (zero tolerance)**:
+- ❌ `try: ... except: pass` — swallows everything
+- ❌ `try: ... except Exception: continue` — swallows without logging
+- ❌ `try: ... except: return None` — swallows; the caller never knows
+- ❌ `print(...)` in prod paths instead of a logger — no level / no timestamp / no location
+- ❌ No logger at all on critical paths — a failure can only be reproduced
 
-**正模式**:
+**Positive patterns**:
 - ✅ `except Exception as e: logger.error("xxx failed", exc_info=True, extra={"ctx": ctx})`
-- ✅ 关键决策点必有 `logger.info("processing X", extra={"id": x})`
-- ✅ 边界条件 (外部 IO / 用户输入 / 配置文件) 必有 `logger.warning("unexpected input: ...")`
+- ✅ Critical decision points always carry `logger.info("processing X", extra={"id": x})`
+- ✅ Boundary conditions (external IO / user input / config files) always carry `logger.warning("unexpected input: ...")`
 
 ---
 
-## Phase 1: 吞错检测
+## Phase 1: Swallowed-Error Detection
 
-**扫描**: 找出所有吞错 / 静默失败.
+**Scan**: find every swallowed error / silent failure.
 
 ```bash
 # 1.1 Python: bare except / except pass
@@ -45,53 +45,53 @@ grep -rnE "except\s*:\s*(pass|continue|return\s+None|return\s+\"\")" ${REPO_ROOT
 grep -rnE "except\s+Exception\s*:\s*(pass|continue)" ${REPO_ROOT}/ --include="*.py"
 grep -rnE "except\s+.*\s+as\s+\w+\s*:\s*$" ${REPO_ROOT}/ --include="*.py" -A1 | grep -B1 "pass\|continue\|return None"
 
-# 1.2 Python: print 在 prod 路径 (排除 test / script / docs)
+# 1.2 Python: print in prod paths (exclude test / script / docs)
 grep -rnE "^\s*print\(" ${REPO_ROOT}/ --include="*.py" \
   | grep -v "/tests/" | grep -v "/scripts/" | grep -v "/docs/"
 
-# 1.3 Go: 忽略 error (Go 的特殊吞错)
+# 1.3 Go: ignored errors (Go's special brand of swallowing)
 grep -rnE "_\s*=\s*\w+\(" ${REPO_ROOT}/ --include="*.go" \
   | xargs -I{} echo "{} | grep -E '_\s*=\s*\w+Err\|_\s*=\s*\w+\.\w*'"
 
 # 1.4 Go: log.Print vs log.Fatal vs slog
 grep -rnE "log\.Print(ln)?\(" ${REPO_ROOT}/ --include="*.go"
 
-# 1.5 Node/TS: console.log 在 prod 路径
+# 1.5 Node/TS: console.log in prod paths
 grep -rnE "console\.(log|error|warn)" ${REPO_ROOT}/ --include="*.ts" --include="*.js" \
   | grep -v "/tests/" | grep -v "/scripts/"
 
-# 1.6 catch 块空 / 仅 console
+# 1.6 Empty catch blocks / console-only
 grep -rnE "catch\s*\([^)]*\)\s*\{\s*\}" ${REPO_ROOT}/ --include="*.ts" --include="*.js"
 grep -rnE "catch\s*\([^)]*\)\s*\{[^}]*console\.(log|error)" ${REPO_ROOT}/ --include="*.ts" --include="*.js"
 ```
 
-**deliverable**: `docs/audit/<date>-logging-gaps.md` 含:
-- 吞错点列表 (file:line + 上下文)
-- print 在 prod 路径列表
-- Go `_` 忽略 error 列表
-- 评级: Critical (吞错) / Warning (print) / Info (建议加日志)
+**deliverable**: `docs/audit/<date>-logging-gaps.md` containing:
+- Swallowed-error site list (file:line + context)
+- print-in-prod-path list
+- Go `_` ignored-error list
+- Grading: Critical (swallowed error) / Warning (print) / Info (add logging)
 
 ---
 
-## Phase 2: 关键路径状态点
+## Phase 2: Critical-Path State Points
 
-**关键路径定义**: 程序的核心业务流, 出错时必须能定位到"走到了哪一步".
+**Critical path definition**: the program's core business flow; on failure it must be possible to pinpoint "which step was reached".
 
 ```bash
-# 2.1 找主入口函数 / 关键业务流程
-# 例: 后端: API handler / job runner / scheduler
-#     前端: route handler / state mutator / API call wrapper
+# 2.1 Find main entry functions / key business flows
+# e.g. backend: API handler / job runner / scheduler
+#     frontend: route handler / state mutator / API call wrapper
 grep -rnE "def\s+(process|handle|run|execute|main|start|dispatch)" ${REPO_ROOT}/ --include="*.py" | head -20
 
-# 2.2 这些函数体内缺日志吗?
-# 检查: 函数入口 / 每个分支 / 外部 IO 前 / return 前
+# 2.2 Do these function bodies lack logging?
+# check: function entry / each branch / before external IO / before return
 ```
 
-**关键状态点模板** (每个主流程函数必加):
+**Key state-point template** (mandatory in every main-flow function):
 
 ```python
 def process_order(order_id: str, items: list[Item]) -> OrderResult:
-    # 入口: 记录参数 + 数量
+    # entry: log parameters + counts
     logger.info("processing order", extra={
         "order_id": order_id,
         "item_count": len(items),
@@ -99,18 +99,18 @@ def process_order(order_id: str, items: list[Item]) -> OrderResult:
     })
 
     try:
-        # 关键 IO: 记录开始
+        # critical IO: log the start
         logger.debug("validating items")
         validated = validate_items(items)
 
-        # 关键决策: 记录分支
+        # critical decision: log the branch
         if validated.has_hazardous:
             logger.warning("hazardous items detected", extra={
                 "order_id": order_id,
                 "hazardous_types": validated.hazardous_types,
             })
 
-        # 关键 IO 完成: 记录结果
+        # critical IO done: log the result
         logger.debug("payment started")
         payment = charge_payment(order_id, validated.total)
         logger.info("payment succeeded", extra={
@@ -122,7 +122,7 @@ def process_order(order_id: str, items: list[Item]) -> OrderResult:
         return OrderResult(success=True, order_id=order_id)
 
     except PaymentError as e:
-        # 失败: 记录完整上下文 + traceback
+        # failure: log full context + traceback
         logger.error("payment failed", extra={
             "order_id": order_id,
             "amount": validated.total,
@@ -138,27 +138,27 @@ def process_order(order_id: str, items: list[Item]) -> OrderResult:
         return OrderResult(success=False, error="validation")
 ```
 
-**最少日志要求**:
-1. **入口**: `logger.info` with 主要参数
-2. **每个 except**: `logger.error/warning` with 上下文 + `exc_info=True`
-3. **外部 IO 前**: `logger.debug` 标记开始
-4. **外部 IO 后**: `logger.info/debug` 标记结果
-5. **关键决策点**: `logger.info/warning` 记录走的分支
-6. **退出前**: 至少 1 条 `logger.info` 说明成功/失败
+**Minimum logging requirements**:
+1. **Entry**: `logger.info` with the main parameters
+2. **Every except**: `logger.error/warning` with context + `exc_info=True`
+3. **Before external IO**: `logger.debug` marks the start
+4. **After external IO**: `logger.info/debug` marks the result
+5. **Critical decision points**: `logger.info/warning` records the branch taken
+6. **Before exit**: at least 1 `logger.info` stating success/failure
 
 ---
 
-## Phase 3: 结构化日志升级
+## Phase 3: Structured Logging Upgrade
 
-**目标**: 让日志可被 grep / 解析 / 聚合, 而不只是给人看.
+**Goal**: make logs greppable / parseable / aggregatable, not just human-readable.
 
 ### Python: structlog / loguru
 
 ```python
-# 推荐: loguru (零配置, 自动结构化)
+# recommended: loguru (zero config, auto-structured)
 from loguru import logger
 
-# 推荐: stdlib logging + JSON handler (无新依赖)
+# recommended: stdlib logging + JSON handler (no new dependency)
 import logging
 import json
 
@@ -188,7 +188,7 @@ logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 slog.SetDefault(logger)
 
 slog.Info("processing order", "order_id", orderID, "item_count", len(items))
-slog.Error("payment failed", "order_id", orderID, "err", err)  // err 自动带 traceback
+slog.Error("payment failed", "order_id", orderID, "err", err)  // err carries the traceback automatically
 ```
 
 ### Node/TS: pino (fastest JSON logger)
@@ -198,194 +198,194 @@ import pino from 'pino';
 const logger = pino({ level: 'info' });
 
 logger.info({ order_id, item_count: items.length }, 'processing order');
-logger.error({ err, order_id }, 'payment failed');  // err 自动序列化
+logger.error({ err, order_id }, 'payment failed');  // err auto-serialized
 ```
 
-**统一字段约定** (跨语言):
+**Unified field conventions** (cross-language):
 - `timestamp` (ISO 8601)
 - `level` (debug/info/warning/error)
-- `message` (人类可读短句)
-- `module` / `logger` (来源标识)
-- 业务字段: `order_id` / `user_id` / `txn_id` / `request_id` (snake_case, 跨语言一致)
-- 错误: `err` / `error` + 原始异常对象 (含 traceback)
+- `message` (short human-readable sentence)
+- `module` / `logger` (source identifier)
+- Business fields: `order_id` / `user_id` / `txn_id` / `request_id` (snake_case, identical across languages)
+- Errors: `err` / `error` + the raw exception object (with traceback)
 
 ---
 
-## Phase 4: 日志级别规范
+## Phase 4: Log Level Conventions
 
-| 级别 | 何时用 | 生产默认 |
+| Level | When to use | Production default |
 |------|--------|----------|
-| **DEBUG** | 详细诊断, 上线后可关闭 | ❌ off |
-| **INFO** | 关键状态点 / 业务事件 | ✅ on |
-| **WARNING** | 异常但程序继续 (重试, 降级, 边界输入) | ✅ on |
-| **ERROR** | 当前请求失败, 但服务不死 | ✅ on |
-| **CRITICAL/FATAL** | 服务不可用, 立即告警 | ✅ on + 告警 |
+| **DEBUG** | Detailed diagnostics, can be turned off after go-live | ❌ off |
+| **INFO** | Critical state points / business events | ✅ on |
+| **WARNING** | Abnormal but the program continues (retries, degradation, edge-case input) | ✅ on |
+| **ERROR** | Current request failed, but the service survives | ✅ on |
+| **CRITICAL/FATAL** | Service unavailable, alert immediately | ✅ on + alert |
 
-**判定标准**:
-- 用户能看到影响 → ERROR
-- 程序能恢复 → WARNING
-- 程序不能恢复 → CRITICAL/FATAL + 进程退出
-- 状态变更 → INFO
-- 排查用 → DEBUG (开发开, 生产关)
+**Decision criteria**:
+- User-visible impact -> ERROR
+- Program can recover -> WARNING
+- Program cannot recover -> CRITICAL/FATAL + process exit
+- State change -> INFO
+- Troubleshooting -> DEBUG (on in dev, off in production)
 
-**反模式**:
-- ❌ INFO 用来排查 bug (噪声, 应该 DEBUG)
-- ❌ WARNING 当 ERROR 用 (用户已经失败, 不是"可能")
-- ❌ ERROR 不带 `exc_info` (丢 traceback)
-- ❌ 所有日志都 ERROR (淹没真实告警)
+**Anti-patterns**:
+- ❌ INFO used for bug hunting (noise; belongs in DEBUG)
+- ❌ WARNING used as ERROR (the user-facing operation already failed, not "might fail")
+- ❌ ERROR without `exc_info` (loses the traceback)
+- ❌ Everything logged as ERROR (drowns real alerts)
 
 ---
 
-## Phase 5: 验证
+## Phase 5: Verification
 
 ```bash
-# 5.1 吞错点 0 命中
-grep -rnE "except\s*:\s*(pass|continue)" ${REPO_ROOT}/ --include="*.py" | wc -l  # 应为 0
+# 5.1 Swallowed-error sites: 0 hits
+grep -rnE "except\s*:\s*(pass|continue)" ${REPO_ROOT}/ --include="*.py" | wc -l  # should be 0
 
-# 5.2 print 在 prod 路径 0 命中
-grep -rnE "^\s*print\(" ${REPO_ROOT}/ --include="*.py" | grep -v test | wc -l  # 应为 0
+# 5.2 print in prod paths: 0 hits
+grep -rnE "^\s*print\(" ${REPO_ROOT}/ --include="*.py" | grep -v test | wc -l  # should be 0
 
-# 5.3 关键函数都有入口日志
-# 抽样检查 5-10 个主流程函数, 每个至少有 1 条 logger.info/info
+# 5.3 Every critical function has entry logging
+# sample 5-10 main-flow functions; each has at least 1 logger.info/info
 
-# 5.4 except 都有 logger
+# 5.4 Every except has a logger
 grep -rnE "except\s+\w+(\s+as\s+\w+)?\s*:" ${REPO_ROOT}/ --include="*.py" -A2 \
   | grep -B1 "logger\.(error|warning)" | wc -l
-# 应该 ≈ except 总数 (允许少数真的可以静默的: 如 KeyboardInterrupt 重抛)
+# should be ~= the total except count (a few genuinely silent cases are allowed: e.g. re-raised KeyboardInterrupt)
 
-# 5.5 结构化字段一致 (抽样 5 个 logger 调用, 看 extra dict 字段命名)
-# 期望: order_id / user_id / txn_id / request_id snake_case 一致
+# 5.5 Structured field names consistent (sample 5 logger calls; inspect extra dict field naming)
+# expected: order_id / user_id / txn_id / request_id in consistent snake_case
 
-# 5.6 跑测试, 触发一些错误, 看日志输出
+# 5.6 Run the tests, trigger some errors, inspect the log output
 ${TEST_RUNNER} 2>&1 | grep -E "ERROR|CRITICAL" | head -20
-# 期望: 每个 ERROR 都有 traceback + 上下文
+# expected: every ERROR has traceback + context
 
-# 5.7 性能: 日志不能阻塞主流程
-# 在 prod 跑 1 小时, p99 延迟没增加 > 5%
+# 5.7 Performance: logging must not block the main flow
+# run 1 hour in prod; p99 latency must not increase by more than 5%
 ```
 
-**结束标准**:
-- 吞错点 0 (除 KeyboardInterrupt / SystemExit 重抛)
-- print 在 prod 路径 0
-- 关键函数有入口 + 退出 + 异常日志
-- 日志格式结构化 (JSON / 一致字段)
-- ${TEST_RUNNER} 全绿
-- 日志聚合 (Loki / ELK) 能 grep 到所有 ERROR
+**Done criteria**:
+- 0 swallowed-error sites (except re-raised KeyboardInterrupt / SystemExit)
+- 0 print in prod paths
+- Critical functions have entry + exit + exception logs
+- Log format structured (JSON / consistent fields)
+- ${TEST_RUNNER} all green
+- Log aggregation (Loki / ELK) can grep every ERROR
 
 ---
 
-## YAGNI 注意 (零提前防御)
+## YAGNI Notes (zero upfront defense)
 
-> 来自通用硬约束 #1: 不为没发生过的风险提前设计防御机制.
+> From generic hard constraint #1: do not design defense mechanisms for risks that have never occurred.
 
-- ❌ 不要为每个函数加 "trace log" (太多没用的日志)
-- ❌ 不要为"将来可能扩展"加 dynamic context injection
-- ❌ 不要为"安全审计"加单独的 audit log channel (除非真有合规要求)
-- ✅ **已发生的问题才补**: 用户报告 "我看不出为什么失败" → 加 ERROR 日志
-- ✅ **关键路径就够**: 不是每个函数都要日志, 主流程 + 边界 + 异常才要
+- ❌ Do not add a "trace log" to every function (too much useless logging)
+- ❌ Do not add dynamic context injection for "possible future extension"
+- ❌ Do not add a separate audit log channel for "security auditing" (unless a compliance requirement truly exists)
+- ✅ **Patch only problems that have happened**: a user reports "cannot tell why it failed" -> add ERROR logging
+- ✅ **Critical paths suffice**: not every function needs logs — main flows + boundaries + exceptions do
 
 ---
 
-## 已知坑
+## Known Pitfalls
 
-| 坑 | 现象 | 解决 |
+| Pitfall | Symptom | Fix |
 |---|---|---|
-| 日志太多反而掩盖错误 | ERROR 被 INFO 淹没 | 生产默认 INFO, DEBUG 关, ERROR 用告警通道 |
-| 日志含敏感信息 (password / token) | 合规问题 | logger 字段禁敏感, 或用 secret redaction filter |
-| 异步日志丢消息 | 进程退出时丢日志 | sync 模式 + flush on shutdown, 或 accept 风险 (业务可恢复) |
-| 跨进程 trace 断裂 | 微服务调用链断 | 用 trace_id (OpenTelemetry / 自定义 header 透传) |
-| 日志时区错 | 多时区混淆 | 统一 UTC 存储 + 本地化展示 |
-| `exc_info=True` 漏掉 | ERROR 没 traceback | linter 规则: 每个 except 必须有 exc_info 或 logger.exception |
+| Too much logging masks errors instead | ERROR drowned by INFO | Production default INFO, DEBUG off, ERROR routed to the alert channel |
+| Logs contain sensitive data (password / token) | Compliance problem | No secrets in logger fields, or use a secret redaction filter |
+| Async logging drops messages | Logs lost at process exit | sync mode + flush on shutdown, or accept the risk (business-recoverable) |
+| Cross-process trace breaks | Microservice call chain severed | Use trace_id (OpenTelemetry / custom header propagation) |
+| Log timezone wrong | Multi-timezone confusion | Store uniformly in UTC + localize display |
+| `exc_info=True` omitted | ERROR without traceback | Linter rule: every except must have exc_info or logger.exception |
 
 ---
 
-## 实战案例: 抓取任务 24h=0 bug (silent error 教训)
+## Field Case: Crawler Job 24h=0 Bug (silent error lesson)
 
-> **真实案例教学**. 24h ingest 突然为 0, 排查多花 2h 才定位根因 — 全是静默 except 吞错.
-> 案例原文 (kb 真实符号名 / 路径): 见 `projects/kb.md`.
+> **Real-case teaching**. The 24h ingest suddenly hit 0; troubleshooting burned an extra 2h to locate the root cause — nothing but silent excepts swallowing errors.
+> Case source (real kb symbol names / paths): see `projects/kb.md`.
 
-### Bug 根因 (4 类 silent error)
+### Bug Root Cause (4 kinds of silent error)
 
-| 位置 | 反模式 | 修复 |
+| Location | Anti-pattern | Fix |
 |------|--------|------|
-| `_batch_write` (批量写库) | 静默 `except: pass` 吞 DB 错误, rowcount 没记录 | `logger.error("batch write failed", exc_info=True, extra={"rowcount": cur.rowcount, "sql": sql[:200]})` |
-| `_load_urls` (URL 加载) | 静默 except 吞掉 URL 加载失败 | `logger.error("url load failed", exc_info=True, extra={"site": site, "batch_size": n})` |
-| `_cleanup_leftovers` (遗留清理) | 静默 except 吞掉清理失败 | `logger.error("cleanup failed", exc_info=True, extra={"stuck_count": n})` |
-| `except: continue` (cron 主循环) | 整个 cron 任务静默失败 | `logger.exception("task failed"); sys.exit(1)` |
+| `_batch_write` (bulk DB write) | Silent `except: pass` swallows DB errors, rowcount never logged | `logger.error("batch write failed", exc_info=True, extra={"rowcount": cur.rowcount, "sql": sql[:200]})` |
+| `_load_urls` (URL loading) | Silent except swallows URL load failures | `logger.error("url load failed", exc_info=True, extra={"site": site, "batch_size": n})` |
+| `_cleanup_leftovers` (leftover cleanup) | Silent except swallows cleanup failures | `logger.error("cleanup failed", exc_info=True, extra={"stuck_count": n})` |
+| `except: continue` (cron main loop) | The entire cron job fails silently | `logger.exception("task failed"); sys.exit(1)` |
 
-### 排查时间线
+### Troubleshooting Timeline
 
 ```
-24h=0 检测 → 查 cron log → 0 输出
-         → 查 cron stdout → 0 输出
-         → ssh 进 prod 手动跑 → 仍 0 输出 (静默)
-         → 加 print debug → 2h 后定位到 _batch_write
-         → 改 logger.error → 立即看到 DB 报错 "connection timeout"
+24h=0 detected → check cron log → 0 output
+         → check cron stdout → 0 output
+         → ssh into prod, run manually → still 0 output (silent)
+         → add print debug → 2h later pinpoints _batch_write
+         → switch to logger.error → DB error "connection timeout" appears immediately
 ```
 
-**根因**: 一连串静默 except 让程序"假装在工作", 输出全无. 排查时只能逐函数 print 试探.
+**Root cause**: a chain of silent excepts lets the program "pretend to work" with zero output. Troubleshooting is reduced to probing function by function with print.
 
-### 教训
+### Lessons
 
-- **每个 except 必须有 logger.error + 上下文** (这是 4 类 silent error 的通用修复)
-- **关键路径必须有 logger.info 状态点** (round 启动/关闭, bulk_write rowcount, ingest 涨/跌)
-- **没用 logger 的 print 必须迁移** — 不是 nice-to-have, 是排查基础设施
+- **Every except must carry logger.error + context** (the universal fix for all 4 kinds of silent error)
+- **Critical paths must have logger.info state points** (round start/stop, bulk_write rowcount, ingest up/down)
+- **print that bypasses the logger must be migrated** — not a nice-to-have, but troubleshooting infrastructure
 
 ---
 
-## Logger 配置建议 (stdlib + journald 集成)
+## Logger Configuration Guidance (stdlib + journald integration)
 
-> **推荐 stdlib logging** — 零新增依赖, 与 systemd journald 集成好 (项目用 systemd 时). kb 项目完整实例 (unit 文件 / logger 命名): 见 `projects/kb.md`.
+> **stdlib logging recommended** — zero new dependencies and integrates well with systemd journald (when the project runs on systemd). Complete kb project example (unit file / logger naming): see `projects/kb.md`.
 
-### 模块级 logger 命名约定
+### Module-level Logger Naming Convention
 
 ```python
-# 反模式: 用 root logger
-logging.info("hello")  # 污染所有 logger
+# anti-pattern: use the root logger
+logging.info("hello")  # pollutes every logger
 
-# 正模式: 模块级命名空间 (<域>.<模块>; 域 = 短服务前缀, 每项目定 1 个)
+# positive pattern: module-level namespace (<domain>.<module>; domain = short service prefix, 1 per project)
 import logging
-log = logging.getLogger("app.crawler")      # crawler 模块
-log = logging.getLogger("app.cron")          # cron 脚本
-log = logging.getLogger("app.scheduler")     # 调度器
-log = logging.getLogger(f"app.{__name__}")   # 子模块自动命名
+log = logging.getLogger("app.crawler")      # crawler module
+log = logging.getLogger("app.cron")          # cron script
+log = logging.getLogger("app.scheduler")     # scheduler
+log = logging.getLogger(f"app.{__name__}")   # auto-named submodule
 ```
 
-### systemd journald 集成配置
+### systemd journald Integration Config
 
 ```python
-# /etc/systemd/system/<app>-<worker>.service  (unit 文件模板)
+# /etc/systemd/system/<app>-<worker>.service  (unit file template)
 [Service]
-ExecStart=/usr/bin/python3 <repo 内模块入口, 绝对路径>
+ExecStart=/usr/bin/python3 <module entry inside the repo, absolute path>
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=<app>-<worker>
 
-# Python 端: 用 SysLogHandler 或 stdlib journal
+# Python side: use SysLogHandler or the stdlib journal
 import logging
 from logging.handlers import SysLogHandler
 
 handler = SysLogHandler(address="/dev/log")
-handler.ident = "<app>-<worker> "  # journald 显示
+handler.ident = "<app>-<worker> "  # shown by journald
 formatter = logging.Formatter("%(name)s: %(levelname)s %(message)s")
 handler.setFormatter(formatter)
 
-log = logging.getLogger("app.crawler")   # 与模块级命名约定一致
+log = logging.getLogger("app.crawler")   # matches the module-level naming convention
 log.addHandler(handler)
 log.setLevel(logging.INFO)
 ```
 
-### 文件 + journald 双输出
+### File + journald Dual Output
 
 ```python
 import logging
 from logging.handlers import SysLogHandler, RotatingFileHandler
 
-# journald (systemd 环境)
+# journald (systemd environment)
 journal = SysLogHandler(address="/dev/log")
 journal.ident = "<app>-<worker> "
 
-# 文件 (log rotation, 保留 7 天)
+# file (log rotation, 7-day retention)
 file_h = RotatingFileHandler(
     "/var/log/<app>/<worker>.log",
     maxBytes=100 * 1024 * 1024,  # 100MB
@@ -401,29 +401,29 @@ log.addHandler(file_h)
 log.setLevel(logging.INFO)
 ```
 
-### 结构化字段 (与 trace_id 联动)
+### Structured Fields (tied to trace_id)
 
 ```python
-# 项目若已有 trace_id helper (contextvar 透传), 但 logger 没用到 → 整合:
+# if the project already has a trace_id helper (contextvar propagation) but the logger ignores it -> integrate:
 import logging
 
 def log_with_trace(msg: str, level: int = logging.INFO, **fields):
-    """统一入口: 自动带 trace_id"""
-    trace_id = get_current_trace_id()  # 从 contextvar 取
+    """Unified entry point: attaches trace_id automatically"""
+    trace_id = get_current_trace_id()  # read from the contextvar
     log.log(level, msg, extra={"trace_id": trace_id, **fields})
 
-# 用法
+# usage
 log_with_trace("round started", round_id=rid, site_count=n)
 ```
 
-### 验证
+### Verification
 
 ```bash
-# 跑一个 round, 看 log 是否含结构化字段
+# run one round; check whether the logs contain the structured fields
 journalctl -u <app>-<worker> -n 100 | grep -E "trace_id|round_id"
-# 期望: 每个 log 行都有 trace_id + round_id
+# expected: every log line carries trace_id + round_id
 
-# 触发错误, 看是否含 traceback + 上下文
+# trigger errors; check for traceback + context
 journalctl -u <app>-<worker> --since "1h ago" | grep -A 20 "ERROR"
-# 期望: 每个 ERROR 都跟 traceback 行 + 上下文 (rowcount / sql / batch_size 等)
+# expected: every ERROR is followed by traceback lines + context (rowcount / sql / batch_size, etc.)
 ```

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""silent_swallow.py — Phase 13.1 静默吞错扫描 (含 Phase 13.2 context-aware 过滤).
+"""silent_swallow.py — Phase 13.1 silent-error scan (with Phase 13.2 context-aware filtering).
 
-找 `except ...: pass|continue` 模式 (1 行或 2 行). 命中 = 应改 log 或 raise.
-不包含 `except X: log; pass` (有 log 的不算吞错).
+Finds `except ...: pass|continue` patterns (1 or 2 lines). A hit = should log or raise instead.
+Excludes `except X: log; pass` (logging present = not a silent swallow).
 
-Phase 13.2 context-aware 过滤 (排除 false positive 类):
-- `except StopIteration: pass` — generator 关闭句柄 (Python 惯用法)
-- `except OSError: pass` 在 `unlink(missing_ok=True)` 之后 — race 防御
-- 父行含 `shutil.rmtree` / cleanup / finalizer — shutdown cleanup
-- 同函数内 `logger.debug` 紧邻 — 已有 log, 不算吞错
+Phase 13.2 context-aware filters (exclude false-positive classes):
+- `except StopIteration: pass` — generator close handle (Python idiom)
+- `except OSError: pass` right after `unlink(missing_ok=True)` — race defense
+- Parent line contains `shutil.rmtree` / cleanup / finalizer — shutdown cleanup
+- Sibling `logger.debug` in the same function — already logged, not a swallow
 
-用法:
-    python3 scripts/audit/silent_swallow.py                # 扫全仓 (含过滤)
-    python3 scripts/audit/silent_swallow.py --raw         # 不过滤, 看全部
-    python3 scripts/audit/silent_swallow.py --limit 50
-    python3 scripts/audit/silent_swallow.py backend/
-    # Python-only: 只扫 *.py. 无参数 = git ls-files 探测顶层源码目录;
-    # 显式路径不存在 → WARNING 跳过 (继续其他), 全无效 → return 1 (不静默干净).
+Usage:
+    python3 scripts/silent_swallow.py                # scan repo (with filtering)
+    python3 scripts/silent_swallow.py --raw         # no filtering, show all
+    python3 scripts/silent_swallow.py --limit 50
+    python3 scripts/silent_swallow.py backend/
+    # Python-only: scans *.py. No args = git ls-files detects top-level source dirs;
+    # nonexistent explicit path -> WARNING + skip (continue others); all invalid -> return 1 (never silent-clean).
 
-退出码: 0=0 命中, 1=有命中 (CI gate).
+Exit codes: 0=no hits, 1=hits found (CI gate).
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from pathlib import Path
 
 
 def _find_repo_root() -> Path:
-    """从本脚本位置向上 walk, 找含 .git 目录的最近祖先."""
+    """Walk upward from this script's location to the nearest ancestor containing a .git dir."""
     p = Path(__file__).resolve().parent
     for cand in [p, *p.parents]:
         if (cand / ".git").exists():
@@ -46,11 +46,11 @@ REPO_ROOT = _find_repo_root()
 
 
 def _detect_source_dirs() -> list[str] | None:
-    """默认目录探测: `git ls-files "*.py"` (cwd=REPO_ROOT) → 每路径第一段 →
-    去 EXCLUDE_DIRS → 去非目录段 → 排序.
+    """Default dir detection: `git ls-files "*.py"` (cwd=REPO_ROOT) -> first path segment ->
+    drop EXCLUDE_DIRS -> drop non-directory segments -> sort.
 
-    无 .py 跟踪文件或无有效顶层目录 → print WARNING + 返回 None
-    (调用方 return 1, 不静默过).
+    No tracked .py files or no valid top-level dir -> print WARNING + return None
+    (caller returns 1, never silently passes).
     """
     r = subprocess.run(["git", "ls-files", "*.py"], cwd=REPO_ROOT,
                        capture_output=True, text=True, check=False)
@@ -58,26 +58,26 @@ def _detect_source_dirs() -> list[str] | None:
     segs = sorted({ln.split("/")[0] for ln in lines} - EXCLUDE_DIRS)
     dirs = [s for s in segs if (REPO_ROOT / s).is_dir()]
     if not lines or not dirs:
-        print("WARNING: 未从 git ls-files 探测到源码目录, 用 --dirs 指定")
+        print("WARNING: no source dirs detected from git ls-files, specify with --dirs")
         return None
     return dirs
 
 
-# 单行:  except X:    \n   pass|continue
+# single-line:  except X:    \n   pass|continue
 SINGLE = re.compile(
     r"^\s*except[^:]*:\s*(pass|continue)\s*$",
     re.M,
 )
-# 2行:   except X:\n     pass|continue
+# two-line:   except X:\n     pass|continue
 TWO_LINE = re.compile(
     r"except[^\n]*:\s*\n\s+(pass|continue)\b",
 )
 
 EXCLUDE_DIRS = {".git", "__pycache__", "node_modules", "venv", ".venv", "build", "dist", ".codegraph"}
 
-# Phase 13.2 context-aware 过滤关键词 (上下文行有这些 → false positive)
+# Phase 13.2 context-aware filter keywords (a context line containing these -> false positive)
 FP_CONTEXT = (
-    # generator 关闭
+    # generator close
     r"\bStopIteration\b",
     # cleanup / shutdown / finalizer
     r"\bshutil\.(rmtree|copy|move)\b",
@@ -92,7 +92,7 @@ FP_CONTEXT = (
 
 
 def _is_false_positive(file_text: str, line_num: int) -> bool:
-    """检查 line_num 上下 5 行是否命中 FP context 关键词."""
+    """Check whether the 5 lines around line_num hit any FP context keyword."""
     lines = file_text.splitlines()
     ctx_start = max(0, line_num - 6)
     ctx_end = min(len(lines), line_num + 4)
@@ -104,9 +104,9 @@ def _is_false_positive(file_text: str, line_num: int) -> bool:
 
 
 def scan(paths: list[Path], *, filter_fp: bool = True) -> list[tuple[Path, int, str]]:
-    """返回去重 (file, line) 列表, kind 标 single/two-line.
+    """Return a deduped (file, line) list; kind marks single/two-line.
 
-    filter_fp=True: 排除 false positive 类 (Phase 13.2 context-aware).
+    filter_fp=True: exclude false-positive classes (Phase 13.2 context-aware).
     """
     out: list[tuple[Path, int, str]] = []
     seen: set[tuple[Path, int]] = set()
@@ -142,32 +142,32 @@ def scan(paths: list[Path], *, filter_fp: bool = True) -> list[tuple[Path, int, 
 
 
 def scan_raw(paths: list[Path]) -> list[tuple[Path, int, str]]:
-    """不过滤, 返所有 (含 defensive)."""
+    """No filtering; return everything (including defensive swallows)."""
     return scan(paths, filter_fp=False)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("paths", nargs="*", default=None,
-                    help="paths to scan (relative to repo root; 默认 git ls-files 探测)")
+                    help="paths to scan (relative to repo root; default: detected via git ls-files)")
     ap.add_argument("--limit", type=int, default=50, help="max findings to display")
     ap.add_argument("--raw", action="store_true",
-                    help="不过滤 false positive (Phase 13.2)")
+                    help="do not filter false positives (Phase 13.2)")
     args = ap.parse_args()
 
     given = list(args.paths) if args.paths else _detect_source_dirs()
     if given is None:
         return 1
-    # 显式/探测目录逐一确认存在; 缺失 → WARNING 跳过 (仍扫其余)
+    # Verify each explicit/detected dir exists; missing -> WARNING + skip (still scan the rest)
     paths: list[Path] = []
     for p in given:
         full = REPO_ROOT / p
         if full.is_dir():
             paths.append(full)
         else:
-            print(f"WARNING: 目录不存在, 跳过: {p}")
+            print(f"WARNING: directory does not exist, skipping: {p}")
     if not paths:
-        print("WARNING: 无有效目录可扫 (全部不存在或探测为空), 未扫描任何路径")
+        print("WARNING: no valid directories to scan (all missing or detection empty), no paths scanned")
         return 1
 
     filter_fp = not args.raw
@@ -176,19 +176,19 @@ def main() -> int:
 
     if not findings:
         if filter_fp:
-            print(f"✓ 无 silent swallow (raw {raw_count} 已过滤 {raw_count - 0} defensive)")
+            print(f"✓ no silent swallow (raw {raw_count}, filtered {raw_count - 0} defensive)")
         else:
-            print(f"✓ 无 silent swallow ({sum(1 for _ in paths)} paths 扫完)")
+            print(f"✓ no silent swallow ({sum(1 for _ in paths)} paths scanned)")
         return 0
 
-    mode = "(raw, 不过滤)" if args.raw else f"(过滤后, raw {raw_count})"
-    print(f"✗ 发现 {len(findings)} 处 silent swallow {mode} (前 {args.limit}):")
+    mode = "(raw, unfiltered)" if args.raw else f"(after filter, raw {raw_count})"
+    print(f"✗ found {len(findings)} silent swallow {mode} (first {args.limit}):")
     for fpath, line, kind in findings[: args.limit]:
         print(f"  {fpath}:{line}  [{kind}]")
     if len(findings) > args.limit:
-        print(f"  ... 还有 {len(findings) - args.limit} 处未显示")
+        print(f"  ... {len(findings) - args.limit} more not shown")
     print()
-    print(f"修法模板: `except X as e: log.exception(...)` 或 `raise` (必须让 caller 看到)")
+    print(f"fix template: `except X as e: log.exception(...)` or `raise` (the caller must see it)")
     return 1
 
 

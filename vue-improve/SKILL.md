@@ -1,60 +1,60 @@
 ---
 name: vue-improve
-description: Vue 3 + TypeScript + Vite + Pinia 前端代码改进。包含组件设计、setup TDZ 坑、watchEffect 陷阱、Pinia store 模式、Vite build 优化、chunk hash 部署。Triggers: Vue, 组件, Pinia, Vite, setup, watch, watchEffect, ref, 路由, bundle, chunk, TypeScript, TS, 前端, frontend, SPA, reactivity
+description: "Vue 3 + TypeScript + Vite + Pinia frontend code improvement. Covers component design, setup TDZ pitfalls, watchEffect traps, Pinia store patterns, Vite build optimization, chunk hash deployment. Triggers: Vue, component, Pinia, Vite, setup, watch, watchEffect, ref, routing, bundle, chunk, TypeScript, TS, frontend, SPA, reactivity"
 metadata:
   type: domain
   scope: public
 ---
 
-# vue-improve — Vue 3 前端代码改进
+# vue-improve — Vue 3 Frontend Code Improvement
 
-self-contained skill。第一版骨架，references 待补（欢迎贡献）。
+Self-contained skill. First-version skeleton; references pending (contributions welcome).
 
 ## 🛑 MANDATORY WORKFLOW — check all before declaring done
 
 ### Phase 0: Reconnaissance
 
-- [ ] **读现有 Vue 项目结构**: `package.json` + `vite.config.*` + `tsconfig.json` + `src/` 布局
-- [ ] **列组件**: `find src -name "*.vue" | head -50` 摸规模
-- [ ] **列 stores** (Pinia): `find src/stores -name "*.ts" 2>/dev/null`
-- [ ] **列路由**: `find src/router -name "*.ts" 2>/dev/null`
-- [ ] **bundle 当前大小**: `pnpm build && du -sh dist/` 或 `npm run build`
-- [ ] 🛑 **GATE**: 摸清规模才能进 Phase 1（小项目 < 50 组件跳过重型优化）
+- [ ] **Read the existing Vue project structure**: `package.json` + `vite.config.*` + `tsconfig.json` + `src/` layout
+- [ ] **List components**: `find src -name "*.vue" | head -50` to gauge scale
+- [ ] **List stores** (Pinia): `find src/stores -name "*.ts" 2>/dev/null`
+- [ ] **List routes**: `find src/router -name "*.ts" 2>/dev/null`
+- [ ] **Current bundle size**: `pnpm build && du -sh dist/` or `npm run build`
+- [ ] 🛑 **GATE**: enter Phase 1 only once the scale is known (skip heavy optimization for small projects with < 50 components)
 
 ### Phase 1: Anti-pattern scan
 
-- [ ] **setup TDZ 引用后置绑定**: `rg "watch\(.*\)" src/ | head -20` 找可能 TDZ 风险
-- [ ] **watchEffect 写自身订阅源**: `rg "watchEffect" src/`，人工 review 每个 callback
-- [ ] **一次性消费 flag 泄漏**: `rg "let .* = true" src/ | rg -v "test"` 找 watch flag
-- [ ] **解构遮蔽外层 ref**: `rg "const \[.*\] = .*await Promise.all" src/`
-- [ ] **Pinia store 解构丢响应性**: `rg "const \{.*\} = use\w+Store\(\)" src/`（应为 `storeToRefs`）
-- [ ] **选择器根 scope 漏判**: 第三方库（pdf.js / ECharts）的 worker / 实例共享（参考代码清单）
-- [ ] 输出 `anti-pattern-report.md` 列命中项 + 文件:行 + 修复建议
+- [ ] **setup TDZ late-declared binding references**: `rg "watch\(.*\)" src/ | head -20` to find potential TDZ risks
+- [ ] **watchEffect writing its own dependency source**: `rg "watchEffect" src/`; manually review each callback
+- [ ] **One-shot consume flag leaks**: `rg "let .* = true" src/ | rg -v "test"` to find watch flags
+- [ ] **Destructuring shadowing an outer ref**: `rg "const \[.*\] = .*await Promise.all" src/`
+- [ ] **Pinia store destructure losing reactivity**: `rg "const \{.*\} = use\w+Store\(\)" src/` (should be `storeToRefs`)
+- [ ] **Missed selector-root scope checks**: worker / instance sharing in third-party libraries (pdf.js / ECharts) (see the Known pitfalls section below)
+- [ ] Write `anti-pattern-report.md` listing hits + file:line + fix suggestions
 
 ### Phase 2: Fix
 
-- [ ] **TDZ 后置绑定**: 把 const 声明移到 watch 之前
-- [ ] **watchEffect 改 watch**: 或加 `let initialized = false` guard
-- [ ] **flag 泄漏改 prev 比较**: `let prev = val; watch(val, v => { if (v !== prev) { prev = v; ... } })`
-- [ ] **解构改前缀**: `const [firstDoc, secondDoc] = ...`
+- [ ] **TDZ late-declared bindings**: move the const declaration before the watch
+- [ ] **watchEffect → watch**: or add a `let initialized = false` guard
+- [ ] **Flag leaks → prev comparison**: `let prev = val; watch(val, v => { if (v !== prev) { prev = v; ... } })`
+- [ ] **Destructuring → distinct prefixes**: `const [firstDoc, secondDoc] = ...`
 - [ ] **Pinia storeToRefs**: `import { storeToRefs } from 'pinia'; const { count } = storeToRefs(useStore())`
-- [ ] **第三方库实例化谨慎**: 用 `import.meta.glob` 或 `new MyClass()` 单例 + destroy
-- [ ] 🛑 **GATE**: 每个 fix 单独 commit（铁律 2）+ 跑 vitest 验证
+- [ ] **Careful third-party library instantiation**: use `import.meta.glob` or a `new MyClass()` singleton + destroy
+- [ ] 🛑 **GATE**: commit each fix separately (iron rule 2) + run vitest to verify
 
 ### Phase 3: Test + Type
 
-- [ ] **vitest 全绿**: `npx vitest run` 0 fail
-- [ ] **vue-tsc 无类型错误**: `npx vue-tsc --noEmit`
+- [ ] **vitest all green**: `npx vitest run` with 0 fail
+- [ ] **vue-tsc no type errors**: `npx vue-tsc --noEmit`
 - [ ] **ESLint**: `npx eslint src/`
-- [ ] **组件 prop 类型显式**: 不能用 `any`
-- [ ] 🛑 **GATE**: 上面 4 项全绿才能 build
+- [ ] **Explicit component prop types**: `any` is not allowed
+- [ ] 🛑 **GATE**: build only after all 4 items above are green
 
 ### Phase 4: Build + Deploy verify
 
-- [ ] **build 成功**: `pnpm build` 0 error
-- [ ] **bundle 大小对比**: Phase 0 baseline vs 现在
-- [ ] **chunk hash 列表**: `ls dist/assets/` 列出所有 `*.js` / `*.css`
-- [ ] **部署后 curl 验证**:
+- [ ] **Build succeeds**: `pnpm build` with 0 error
+- [ ] **Bundle size comparison**: Phase 0 baseline vs now
+- [ ] **Chunk hash list**: `ls dist/assets/` listing all `*.js` / `*.css`
+- [ ] **Post-deploy curl verification**:
   ```bash
   curl -s https://example.com/ | grep -oE 'src="[^"]+"' | sed 's/src="//;s/"//' | \
     while read f; do
@@ -62,36 +62,36 @@ self-contained skill。第一版骨架，references 待补（欢迎贡献）。
       [ "$code" = "200" ] || echo "MISSING: $f"
     done
   ```
-- [ ] **新 hash 实际生效**: 浏览器 DevTools Network 看实际加载的 chunk hash
-- [ ] 🛑 **GATE**: 部署验证全部 200 + 新 hash 可见才能说"上线完成"
+- [ ] **New hashes actually live**: check the chunk hashes actually loaded in browser DevTools Network
+- [ ] 🛑 **GATE**: say "deploy complete" only after deploy verification is all 200 + new hashes visible
 
 ---
 
-## 已知坑（首版内置，v0.1）
+## Known pitfalls (built into the first version, v0.1)
 
-### setup TDZ 立即回调引用后置绑定
+### setup TDZ: immediate callback referencing a late-declared binding
 
 ```js
-// BAD: watch 立即同步执行 cb，cb 引用后声明的变量 → ReferenceError
+// BAD: watch runs cb synchronously; cb references a variable declared later → ReferenceError
 const user = ref(null)
-watch(user, (val) => console.log(user.name))  // setup 期执行
-const fetched = ref(null)  // 后声明
+watch(user, (val) => console.log(user.name))  // runs during setup
+const fetched = ref(null)  // declared later
 
-// GOOD: 后置绑定，或用 watchEffect 延迟
+// GOOD: declare the binding first, or defer with watchEffect
 const fetched = ref(null)
 const user = ref(null)
 watch(user, (val) => console.log(user.value?.name, fetched.value))
 ```
 
-### watchEffect 回调内写自身订阅源 = 无限循环
+### Writing to its own dependency source inside a watchEffect callback = infinite loop
 
 ```js
 // BAD
 watchEffect(() => {
-  if (data.value.length === 0) data.value = [1]  // 写回自身
+  if (data.value.length === 0) data.value = [1]  // writes back to itself
 })
 
-// GOOD: 用 watch 或加 guard
+// GOOD: use watch or add a guard
 let initialized = false
 watchEffect(() => {
   if (!initialized && data.value.length === 0) {
@@ -101,7 +101,7 @@ watchEffect(() => {
 })
 ```
 
-### 一次性消费 flag 泄漏
+### One-shot consume flag leak
 
 ```js
 // BAD
@@ -113,66 +113,66 @@ watch(loading, (val) => {
   }
 })
 
-// GOOD: 快照比较
+// GOOD: snapshot comparison
 let prev = loading.value
 watch(loading, (val) => {
   if (val !== prev) { prev = val; if (val === false) doStuff() }
 })
 ```
 
-### 解构遮蔽外层 ref
+### Destructuring shadowing an outer ref
 
 ```js
 // BAD
 const [srcDoc, tgtDoc] = await Promise.all([fetchA(), fetchB()])
-// srcDoc 遮蔽外层 ref → 后续访问错对象
+// srcDoc shadows the outer ref → later accesses hit the wrong object
 
-// GOOD: 不同名前缀
+// GOOD: distinct names/prefixes
 const [firstDoc, secondDoc] = await Promise.all([...])
 ```
 
-### Pinia store 解构丢失响应性
+### Pinia store destructure losing reactivity
 
 ```js
 // BAD
-const { count } = useStore()  // 普通变量，count 变更不触发渲染
+const { count } = useStore()  // plain variable; count changes never trigger renders
 
 // GOOD
-const store = useStore()  // 整个 store 引用保持响应
-// 或用 storeToRefs
+const store = useStore()  // keeping the whole store reference preserves reactivity
+// or use storeToRefs
 const { count } = storeToRefs(useStore())
 ```
 
-### Vite 部署：chunk hash 同步
+### Vite deploy: chunk hash sync
 
-前端 build 产物 chunk 名带内容 hash（如 `index-abc123.js`）。只推改的文件 → index.html 引用新 hash → 缺 chunk → MIME `text/html` 404。
+Frontend build artifacts carry a content hash in chunk names (e.g. `index-abc123.js`). Pushing only the changed files → index.html references the new hash → missing chunk → MIME `text/html` 404.
 
-**部署后必做**：curl 验证新 index.html 引用的**每一个** entry/chunk URL 都返回 200。
+**Mandatory after deploy**: curl-verify that **every** entry/chunk URL referenced by the new index.html returns 200.
 
-## 14 硬约束（跨子工作流通用）
+## 14 hard constraints (common across sub-workflows, adapted per domain)
 
-1. **零新增依赖 + 零提前防御 (YAGNI)**: 只用 Vue 生态已装库 + Vite 默认配置。
-2. **commit 颗粒度**: 1 逻辑单元 = 1 commit（组件 + store + 测试同 commit）。
-3. **默认回滚 = git revert**。**绝对禁止 `git reset --hard`**。
-4. **死代码证明需 7 步 checklist**: 组件删除前确认无 router / 动态 import 引用。
-5. **TDD**: Vue 组件用 Vitest + @vue/test-utils，Pinia store 单测。
-6. **commit 前全量测试全绿**: `vitest run` + `vue-tsc --noEmit`。
-7. **prod 锁定**: 部署前 staging 验证。
-8. **宁缺勿伪**: 不编组件 prop 类型，TypeScript 严格模式打开。
-9. **DB 删除**: 不适用（前端无 DB）。
-10. **批量任务先测最小**: 大批量组件迁移先选 1 个目录 sample。
-11. **daemon 改动 4 步独立**: dev server 重启验证 `pgrep -af "vite"`。
-12. **buffer 所有权被转移**: `postMessage` / `getDocument({data})` / buffer transfer — 缓存方保留副本，每次传递前拷贝。
-13. **hash 化构建产物必须整目录同步**: 见上「Vite 部署」节。
-14. **部署验证实际生效标识**: curl 验证新 hash 实际生效，不看脚本退出码。
+1. **Zero new dependencies + zero up-front defensive code (YAGNI)**: use only libraries already installed in the Vue ecosystem + Vite default config.
+2. **Commit granularity**: 1 logical unit = 1 commit (component + store + tests in the same commit).
+3. **Default rollback = git revert**. **`git reset --hard` is absolutely forbidden**.
+4. **Dead-code proof requires a 7-step checklist**: before deleting a component, confirm there are no router / dynamic import references.
+5. **TDD**: Vue components with Vitest + @vue/test-utils, unit tests for Pinia stores.
+6. **Full test suite green before commit**: `vitest run` + `vue-tsc --noEmit`.
+7. **prod lock**: staging verification before deploy.
+8. **Prefer absence over fabrication**: never invent component prop types; TypeScript strict mode on.
+9. **DB deletion**: not applicable (no DB in the frontend).
+10. **Test a minimal sample before batch tasks**: for large component migrations, pick 1 directory as a sample first.
+11. **4 independent steps for daemon changes**: verify the dev server restart with `pgrep -af "vite"`.
+12. **Buffer ownership is transferred**: `postMessage` / `getDocument({data})` / buffer transfer — the caching side keeps a copy; copy before every handoff.
+13. **Hashed build artifacts must be synced as a whole directory**: see the "Vite deploy" section above.
+14. **Deploy verification checks the actually-live marker**: curl-verify that the new hash is actually live; ignore script exit codes.
 
-## 关联
+## Related
 
-- `/repo-medic` — meta 入口
-- `/py-improve` — 后端 API 配套审查（前端调的后端）
-- `/doc-reorg` — 组件文档（README / storybook）整理
-- `/config-base` — bootstrap Node + Vite + Vue 工具链
+- `/repo-medic` — meta entry point
+- `/py-improve` — companion review for the backend API (the backend called by the frontend)
+- `/doc-reorg` — component docs (README / storybook) organization
+- `/config-base` — bootstrap the Node + Vite + Vue toolchain
 
-## 仓库
+## Repository
 
-github.com/ebziw/repo-medic — Apache-2.0。vue-improve 当前为骨架，欢迎贡献完整 references（best-practices / anti-patterns / deploy）。
+github.com/ebziw/repo-medic — Apache-2.0. vue-improve is currently a skeleton; contributions of complete references (best-practices / anti-patterns / deploy) are welcome.

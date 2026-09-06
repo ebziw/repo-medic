@@ -9,6 +9,8 @@
 [![Sub-skills](https://img.shields.io/badge/sub--skills-7-orange.svg)](#子-skill-列表)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
+[简体中文](README.zh-CN.md) | [English](README.md)
+
 [English](README.md) | [中文](README.zh-CN.md)
 
 ---
@@ -38,6 +40,10 @@
 - `references/` 文件夹含深度方法论
 - 可选 `scripts/`（纯标准库）和 `mcp_servers/`（MCP 集成）
 - Apache-2.0 协议
+
+> 🌏 **文档语言** — 每个 sub-skill 的完整文档（SKILL.md + references）提供两个版本：
+> [简体中文](./docs/zh/)（镜像在 `docs/zh/<skill>/`）和
+> [English](./)（运行时加载版，在各 skill 目录下）。
 
 ## 为什么拆成多个 sub-skill 而非单体？
 

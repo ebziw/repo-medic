@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-06
+
+### Added
+- **Fully bilingual documentation**: all 7 sub-skills' docs (SKILL.md + references + templates)
+  rewritten in English (runtime), with the complete 简体中文 versions mirrored under `docs/zh/<skill>/`
+  for human readers. README gains a language switcher and per-language doc links.
+
+### Fixed
+- `doc-reorg` SKILL.md: Phase 0 backup command was malformed (`rsync` missing destination) —
+  the mandatory workflow GATE could never pass as written
+- `db-tweak` SKILL.md: commit-granularity GATE mislabeled "iron law 2" → now cites hard constraint 2;
+  baseline filename made consistent (`baseline-<date>.json`)
+- `evolve` SKILL.md: injection path template corrected to `<target-skill>/references/<topic>.md`
+- `config-base` `tools.py`: `uv` bootstrap no longer self-referential (installs via pip)
+- Frontmatter `description` values quoted — unquoted `Triggers:` inline colon was invalid strict YAML
+- Stale `scripts/audit/` paths in `py-improve` references and script docstrings → `scripts/`
+- Removed internal infrastructure hostnames from public docs; KB sync steps now say
+  "the KB endpoint's public-knowledge collection (skip if no KB system is configured)"
+
+### Changed
+- **`evolve` injection redesigned to be upgrade-safe**: lessons are no longer written into skill
+  packages (which get replaced wholesale on upgrade). All lessons now go to an additive companion
+  skill `~/.claude/skills/repo-medic-lessons/` (per-skill buckets + index), which no release ever touches
+- Shipped scripts (`silent_swallow.py`, `config_drift.py`, `plan-delete.sh`, `audit-plan-delete.sh`)
+  fully translated to English (docstrings, help text, user-facing output); logic unchanged
+- Meta router description trimmed (dropped over-generic triggers `install` / `route` / `bootstrap`)
+
 ## [0.4.0] — 2026-09-06
 
 ### Added

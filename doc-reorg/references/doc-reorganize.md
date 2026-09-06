@@ -1,65 +1,65 @@
-# Document Reorganize Subflow (project-doctor 子工作流)
+# Document Reorganize Subflow (project-doctor sub-workflow)
 
-> 触发: 用户说 "文档重构" / "整理文档" / "env.md 同步" / "deploy.md 同步" / "文档基线" / "文档归档" / "archive stale docs"
-> 范围: 仅文档 (env.md / deploy.md / 分类 / 归档), 不动代码逻辑 / 目录结构
+> Trigger: user says "document restructure" / "organize documents" / "env.md sync" / "deploy.md sync" / "document baseline" / "document archiving" / "archive stale docs"
+> Scope: documents only (env.md / deploy.md / classification / archiving); do not touch code logic / directory structure
 
-## 目录
+## Table of contents
 
-1. [Phase 1: 现状盘点](#phase-1-现状盘点)
-2. [Phase 2: 文档分类归档](#phase-2-文档分类归档-mrdprdarchdesigntestresearch)
-3. [Phase 3: env.md / deploy.md 同步](#phase-3-envmd--deploymd-同步)
-4. [Phase 4: 永续权威文档模板](#phase-4-永续权威文档模板)
-5. [Phase 5: 一致性核对](#phase-5-一致性核对)
+1. [Phase 1: Inventory](#phase-1-inventory)
+2. [Phase 2: Document classification and archiving (MRD/PRD/ARCH/DESIGN/TEST/RESEARCH)](#phase-2-document-classification-and-archiving-mrdprdarchdesigntestresearch)
+3. [Phase 3: env.md / deploy.md sync](#phase-3-envmd--deploymd-sync)
+4. [Phase 4: Evergreen authoritative document templates](#phase-4-evergreen-authoritative-document-templates)
+5. [Phase 5: Consistency check](#phase-5-consistency-check)
 
 ---
 
-## Phase 1: 现状盘点
+## Phase 1: Inventory
 
-**目的**: 量化"整理前" — 文件数 / 类型分布 / 散落文档 / 孤儿引用.
+**Purpose**: quantify the "before" state — file count / type distribution / scattered docs / orphan references.
 
 ```bash
-# 1.1 总览
+# 1.1 Overview
 find docs/ -name "*.md" | wc -l
 find docs/ -type d | sort
 
-# 1.2 按类型分 (如已有 mrd/ prd/ 等子目录)
+# 1.2 By type (if mrd/, prd/ etc. subdirectories already exist)
 for d in docs/*/; do echo "$d: $(find "$d" -name '*.md' | wc -l)"; done
 
-# 1.3 散落文档 (不在 docs/ 下)
+# 1.3 Scattered documents (not under docs/)
 find ${REPO_ROOT} -maxdepth 3 -name "*.md" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/venv/*" -not -path "*/docs/*" | head
 
-# 1.4 12 月未改的候选归档
+# 1.4 Candidates for archiving (not modified for 12 months)
 find docs/ -name "*.md" -not -path "*/archive/*" -mtime +365 | head -20
 ```
 
-**deliverable**: `docs/audit/<date>-doc-snapshot.md` 含文件清单 + 分类现状.
+**deliverable**: `docs/audit/<date>-doc-snapshot.md` containing the file list + classification status.
 
 ---
 
-## Phase 2: 文档分类归档 (MRD/PRD/ARCH/DESIGN/TEST/RESEARCH)
+## Phase 2: Document classification and archiving (MRD/PRD/ARCH/DESIGN/TEST/RESEARCH)
 
-**项目级文档** (顶层 `docs/`):
+**Project-level documents** (top-level `docs/`):
 
-| 类型 | 路径 | 触发场景 |
+| Type | Path | Trigger scenario |
 |------|------|---------|
-| **MRD** (Market Requirements) | `docs/mrd/` | 0 → 1 项目 / 季度业务对齐 |
-| **PRD** (Product Requirements) | `docs/prd/` | 每个功能版本一个 |
-| **ARCH** (Architecture) | `docs/arch/` | 大版本前 / 架构变更 |
-| **DESIGN** (UI/UX Design) | `docs/design/` | 视觉规范, 交互稿, 设计 token |
-| **TEST** (Test Plans) | `docs/test/` | 测试计划, 用例, 覆盖率报告 |
-| **RESEARCH** (Research Notes) | `docs/research/` | 调研笔记, 选型对比, spike 结果 |
+| **MRD** (Market Requirements) | `docs/mrd/` | 0 → 1 project / quarterly business alignment |
+| **PRD** (Product Requirements) | `docs/prd/` | one per feature version |
+| **ARCH** (Architecture) | `docs/arch/` | before a major version / architecture change |
+| **DESIGN** (UI/UX Design) | `docs/design/` | visual specs, interaction drafts, design tokens |
+| **TEST** (Test Plans) | `docs/test/` | test plans, cases, coverage reports |
+| **RESEARCH** (Research Notes) | `docs/research/` | research notes, technology selection comparisons, spike results |
 
-**执行**:
+**Execution**:
 
 ```bash
-# 2.1 创建子目录
+# 2.1 Create the subdirectories
 mkdir -p docs/{mrd,prd,arch,design,test,research}
 
-# 2.2 评估 + git mv
-# 例: 把 SCRATCH-2026-market.md 移到 mrd/
+# 2.2 Evaluate + git mv
+# e.g.: move SCRATCH-2026-market.md into mrd/
 git mv docs/SCRATCH-2026-market.md docs/mrd/2026-market-overview.md
 
-# 2.3 创建 INDEX.md
+# 2.3 Create INDEX.md
 cat > docs/INDEX.md << 'EOF'
 # Documentation Index
 
@@ -67,180 +67,180 @@ cat > docs/INDEX.md << 'EOF'
 - [2026-market-overview](mrd/2026-market-overview.md)
 
 ## PRD (Product)
-- (空)
+- (empty)
 
 ## ARCH
-- (空)
+- (empty)
 
 ## DESIGN
-- (空)
+- (empty)
 
 ## TEST
-- (空)
+- (empty)
 
 ## RESEARCH
-- (空)
+- (empty)
 
 ## Archive
-- (空)
+- (empty)
 EOF
 
-# 2.4 一次分类 1 commit
+# 2.4 One commit per classification pass
 git commit -m "docs(reorg): categorize into mrd/prd/arch/design/test/research (<date>)"
 ```
 
-### 过时文档归档 (强制执行)
+### Stale document archiving (mandatory)
 
-**触发条件** (满足任一即归档):
-- 文档最后一次修改 > 12 个月, 且无 active 引用
-- 文档描述的功能/版本已下线
-- 文档被新版本完全取代 (旧版有参考价值时)
+**Trigger conditions** (archive when any one is met):
+- Document last modified > 12 months ago and has no active references
+- The feature/version the document describes has been retired
+- The document has been fully superseded by a new version (when the old version still has reference value)
 
-**归档路径**: `docs/archive/<type>/<yyyy-mm>/<DATE>-<name>.md`
-(保留原文件名, 加 `<DATE>-` 前缀, 按月份组织)
+**Archive path**: `docs/archive/<type>/<yyyy-mm>/<DATE>-<name>.md`
+(keep the original filename, add a `<DATE>-` prefix, organize by month)
 
-**执行**:
+**Execution**:
 
 ```bash
-# 3.1 找候选
+# 3.1 Find candidates
 find docs/ -maxdepth 3 -name "*.md" -mtime +365 -not -path "*/archive/*"
 
-# 3.2 交叉检查 codegraph 是否还被引用
+# 3.2 Cross-check codegraph for remaining references
 codegraph where "<doc-title>" 2>/dev/null
 
-# 3.3 候选 + 零引用 → git mv
+# 3.3 Candidate + zero references → git mv
 DATE=$(date -u +%Y-%m-%d)
 git mv docs/old-feature-spec.md docs/archive/prd/2026-07/${DATE}-old-feature-spec.md
 
-# 3.4 在归档文件头部加注释
+# 3.4 Add a comment at the top of the archived file
 sed -i '1i > Archived '"$DATE"': superseded by v2 spec\n' docs/archive/prd/2026-07/${DATE}-old-feature-spec.md
 
-# 3.5 单批归档 1 commit
+# 3.5 One commit per archiving batch
 git commit -m "docs(archive): move <N> stale files to docs/archive/ (<DATE>)"
 ```
 
-**禁止**: 永久删除过时文档 (合规要求). 归档后保留 git 历史可追溯.
+**Forbidden**: permanently deleting stale documents (compliance requirement). After archiving, git history stays traceable.
 
-### 二级归档规则 (archive 膨胀控制)
+### Second-level archiving rules (archive bloat control)
 
-- archive > 5 年 → 按 decade 拆二级目录 (`docs/archive/2020s/2020/prd/...`)
-- archive > 1000 文件 → 按 milestone 拆 (`docs/archive/milestone-v2/prd/...`)
+- archive > 5 years → split into second-level directories by decade (`docs/archive/2020s/2020/prd/...`)
+- archive > 1000 files → split by milestone (`docs/archive/milestone-v2/prd/...`)
 
 ---
 
-## Phase 3: env.md / deploy.md 同步
+## Phase 3: env.md / deploy.md sync
 
-**deliverable**: 更新 `env.md` + `deploy.md` 到当前真实状态.
+**deliverable**: bring `env.md` + `deploy.md` up to the current real state.
 
-### env.md 同步
+### env.md sync
 
 ```bash
-# 3.1 提取代码中实际使用的 env var
+# 3.1 Extract the env vars actually used in code
 grep -roPh 'os\.environ\.get\(["\x27]\K[A-Z_][A-Z_0-9]+' ${REPO_ROOT}/ | sort -u > /tmp/code_vars.txt
 
 # Go:    grep -rE 'os\.Getenv\("[A-Z_]+"' ${REPO_ROOT}/
 # Node:  grep -roE 'process\.env\.[A-Z_]+' ${REPO_ROOT}/
 # Rust:  grep -roE 'std::env::var\("[A-Z_]+"' ${REPO_ROOT}/
 
-# 3.2 现有 env.md 列出的 var
+# 3.2 Vars listed in the existing env.md
 grep -oP '\| \`[A-Z_]+\`' ${REPO_ROOT}/env.md | tr -d '|`' | sort -u > /tmp/doc_vars.txt
 
-# 3.3 diff: code 有 doc 缺 → 加; doc 有 code 不用 → 标 deprecated
+# 3.3 diff: present in code but missing from doc → add; present in doc but unused by code → mark deprecated
 diff /tmp/code_vars.txt /tmp/doc_vars.txt
 ```
 
-**env.md 写入规则**:
-- secret 永远不进 env.md (只写项目专属 env 文件, mode 600)
-- env.md 只列**变量名 + 角色 + 默认值 + 是否必填**
-- 新增变量 → 同步加到 env.md
-- 删除变量 → 标 deprecated 保留 1 个版本再删
+**env.md write rules**:
+- secrets never go into env.md (project-specific env file only, mode 600)
+- env.md lists only **variable name + role + default value + whether required**
+- new variable added → sync it into env.md
+- variable removed → mark deprecated, keep for 1 version, then delete
 
-### deploy.md 同步
+### deploy.md sync
 
 ```bash
-# 部署脚本 / systemd unit
+# Deploy scripts / systemd units
 ls ~/.config/systemd/user/*.service 2>/dev/null | awk -F/ '{print $NF}' | sort -u > /tmp/units.txt
 grep -oP '[a-z]+-[a-z-]+\.service' ${REPO_ROOT}/env.md ${REPO_ROOT}/deploy.md | sort -u > /tmp/doc_units.txt
 diff /tmp/units.txt /tmp/doc_units.txt
 
-# 端口
+# Ports
 grep -rnP '127\.0\.0\.1:\d+' ${REPO_ROOT}/ | grep -oP ':\d+' | sort -u > /tmp/ports.txt
 grep -oP '\|\s*\d+\s*\|' ${REPO_ROOT}/env.md | grep -oP '\d+' | sort -u > /tmp/doc_ports.txt
 diff /tmp/ports.txt /tmp/doc_ports.txt
 ```
 
-**deploy.md 必含**:
-- 部署脚本路径 (例: `${DEPLOY_SCRIPT_BACKEND}`)
-- systemd service 列表 (Linux only)
-- 端口映射 (含 staging + prod)
-- 回滚步骤 (rsync / git revert, **不用 git reset --hard**)
+**deploy.md must contain**:
+- deploy script paths (e.g. `${DEPLOY_SCRIPT_BACKEND}`)
+- systemd service list (Linux only)
+- port mappings (staging + prod included)
+- rollback steps (rsync / git revert, **never git reset --hard**)
 
-### doc 引用完整性
+### Doc reference integrity
 
 ```bash
-# 5.4 doc 引用文件存在性
+# 5.4 doc reference file existence
 grep -rn "docs/[a-zA-Z_-]*\.md" docs/ 2>/dev/null | grep -oP 'docs/[a-zA-Z_-]+\.md' | while read f; do
   [ ! -f "$f" ] && echo "BROKEN: $f"
 done
 ```
 
-**修复**:
-- BROKEN 引用 → 改 / 删 (避免 404)
-- code 缺 env var → config.py 加 + env.md 同步
-- doc 缺 unit / port → env.md 补
+**Fixes**:
+- BROKEN references → fix / delete (avoid 404s)
+- env var missing in code → add it in config.py + sync env.md
+- unit / port missing in docs → fill it into env.md
 
 ---
 
-## Phase 4: 永续权威文档模板
+## Phase 4: Evergreen authoritative document templates
 
-**项目级必备**:
+**Project-level required**:
 
-| 文件 | 内容 | 更新触发 |
+| File | Content | Update trigger |
 |------|------|---------|
-| `env.md` | env 变量清单 (名+角色+默认值) | env 改动 |
-| `deploy.md` | 部署流程 + 回滚步骤 | 部署改动 |
-| `pipeline.md` (按需) | pipeline 模块流程图 | pipeline 改动 |
-| `<其他模块>.md` (按需) | 项目特有模块参考 | 该模块改动 |
-| `CLAUDE.md` | agent 入口 + 强制约束 | 流程改动 |
-| `docs/INDEX.md` | 文档目录索引 | 新增/归档/删除文档 |
+| `env.md` | env variable inventory (name + role + default value) | env changes |
+| `deploy.md` | deploy flow + rollback steps | deploy changes |
+| `pipeline.md` (as needed) | pipeline module flow diagram | pipeline changes |
+| `<other-module>.md` (as needed) | project-specific module reference | changes to that module |
+| `CLAUDE.md` | agent entry point + mandatory constraints | flow changes |
+| `docs/INDEX.md` | document directory index | documents added/archived/deleted |
 
-**CLAUDE.md mandate block** (建议结构):
+**CLAUDE.md mandate block** (suggested structure):
 ```markdown
 # CLAUDE.md
 
-## 强制约束
-1. <核心约束 1>
-2. <核心约束 2>
+## Mandatory constraints
+1. <core constraint 1>
+2. <core constraint 2>
 ...
 
-## 工作流
-- <场景 1>: <步骤>
-- <场景 2>: <步骤>
+## Workflows
+- <scenario 1>: <steps>
+- <scenario 2>: <steps>
 ...
 
-## 必读文档 (按优先级)
-1. env.md (env 设置)
-2. deploy.md (部署流程)
-3. <其他模块>.md (项目特有)
+## Required reading (by priority)
+1. env.md (env setup)
+2. deploy.md (deploy flow)
+3. <other-module>.md (project-specific)
 ```
 
-**更新流程**: 任何 env/deploy/模块改动 → **必须** 同步到对应文档 + 单 commit `docs(<area>): sync <summary>`.
+**Update flow**: any env/deploy/module change → **must** be synced into the corresponding document + a single commit `docs(<area>): sync <summary>`.
 
 ---
 
-## Phase 5: 一致性核对
+## Phase 5: Consistency check
 
 **deliverable**: `docs/audit/<date>-consistency.md`
 
-| 检查项 | 命令 |
+| Check | Command |
 |--------|------|
-| env var 一致性 | `diff /tmp/code_vars.txt /tmp/doc_vars.txt` |
-| systemd unit 一致性 | `diff /tmp/units.txt /tmp/doc_units.txt` |
-| 端口一致性 | `diff /tmp/ports.txt /tmp/doc_ports.txt` |
-| doc 引用完整性 | `grep -rn "docs/.*\.md" docs/ \| while read f; do [ ! -f "$f" ] && echo BROKEN; done` |
-| INDEX.md 与实际一致 | `find docs/ -name "*.md" -not -path "*/archive/*" \| sort` vs INDEX.md 列表 |
+| env var consistency | `diff /tmp/code_vars.txt /tmp/doc_vars.txt` |
+| systemd unit consistency | `diff /tmp/units.txt /tmp/doc_units.txt` |
+| port consistency | `diff /tmp/ports.txt /tmp/doc_ports.txt` |
+| doc reference integrity | `grep -rn "docs/.*\.md" docs/ \| while read f; do [ ! -f "$f" ] && echo BROKEN; done` |
+| INDEX.md matches reality | `find docs/ -name "*.md" -not -path "*/archive/*" \| sort` vs the INDEX.md list |
 
-**修复**:
-- 不一致 → 同步更新 + commit
-- BROKEN → 改 / 删引用
-- INDEX 漏 → 补; INDEX 多 → 删
+**Fixes**:
+- inconsistency → sync the update + commit
+- BROKEN → fix / delete the reference
+- missing in INDEX → add it; extra in INDEX → remove it

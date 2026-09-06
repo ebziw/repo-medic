@@ -9,7 +9,7 @@
 [![Sub-skills](https://img.shields.io/badge/sub--skills-7-orange.svg)](#sub-skills)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[English](README.md) | [中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 ---
 
@@ -38,6 +38,10 @@ Each sub-skill ships with:
 - A `references/` folder with deep methodology
 - Optional `scripts/` (stdlib only) and `mcp_servers/` (for MCP integration)
 - Apache-2.0 license
+
+> 🌏 **Documentation languages** — every sub-skill's full docs (SKILL.md + references) are available in
+> [English](./) (runtime, under each skill folder) and
+> [简体中文](./docs/zh/) (mirrored under `docs/zh/<skill>/`).
 
 ## Why sub-skills, not a monolith?
 
@@ -125,8 +129,8 @@ python ~/.claude/skills/config-base/scripts/tools.py check
 # 1. Check what's installed
 /config-base
 
-# 2. Install missing Intel OpenCL ICD
-python ~/.claude/skills/config-base/scripts/tools.py install intel-opencl-icd --yes
+# 2. Install missing Intel OpenCL ICD (ruff shown as the generic example)
+python ~/.claude/skills/config-base/scripts/tools.py install ruff --yes
 
 # 3. Ask py-improve to scan silent errors in your embedding script
 /py-improve check silent_swallow in my OpenVINO loader
@@ -151,8 +155,9 @@ python ~/.claude/skills/config-base/scripts/tools.py install intel-opencl-icd --
 - [x] v0.2.0 — `config-base` sub-skill (toolchain bootstrap)
 - [x] v0.2.1 — Windows compatibility (.cmd/.bat/.com + GBK fallback)
 - [x] v0.3.0 — `evolve` sub-skill (self-distill pitfalls)
-- [ ] v0.4.0 — Community files (CONTRIBUTING, CoC, issue/PR templates) + README polish ← **current**
-- [ ] v0.5.0 — CI workflow (ruff + mypy + smoke tests on PR)
+- [x] v0.4.0 — Community files (CONTRIBUTING, CoC, issue/PR templates) + README polish
+- [ ] v0.5.0 — Fully bilingual docs: English runtime skills + 简体中文 mirror (`docs/zh/`) ← **current**
+- [ ] v0.6.0 — CI workflow (ruff + mypy + smoke tests on PR)
 - [ ] v1.0.0 — Stable API + first external user feedback round
 
 ## Contributing

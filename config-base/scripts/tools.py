@@ -38,7 +38,7 @@ class Tool:
 TOOLS: list[Tool] = [
     # Python core + lint/type/test (py-improve)
     Tool("python", ["python", "--version"], "3.12", category="python"),
-    Tool("uv", ["uv", "--version"], None, install_cmd_linux=["uv", "pip", "install", "--system", "ruff", "mypy", "vulture", "bandit", "radon"], category="python"),
+    Tool("uv", ["uv", "--version"], None, install_cmd_linux=["python", "-m", "pip", "install", "uv"], category="python"),
     Tool("ruff", ["ruff", "--version"], "0.3", install_cmd_linux=["uv", "pip", "install", "--system", "ruff"], category="python"),
     Tool("mypy", ["mypy", "--version"], "1.8", install_cmd_linux=["uv", "pip", "install", "--system", "mypy"], category="python"),
     Tool("vulture", ["vulture", "--version"], "2.0", install_cmd_linux=["uv", "pip", "install", "--system", "vulture"], category="python"),

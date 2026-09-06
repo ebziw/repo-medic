@@ -1,105 +1,105 @@
-# Dict Dedup Subflow (project-doctor 子工作流)
+# Dict Dedup Subflow (project-doctor sub-workflow)
 
-> 触发: 用户说 "字典去重" / "字典整合" / "常量冲突" / "id 定义重复" / "dedup dictionary" / "统一错误码" / "enum 分散" / "合并重复定义"
-> 范围: 仅字典/枚举/常量定义 (id:描述 / status / error_code / role / permission 等)
-> 危害: 同 id 多个定义矛盾 → 程序分支走错路径 → 难查的 bug (不抛异常, 只行为漂移)
-> **风格**: ponytail 极简. dict 只一个家, 别处只允许 re-export. 冲突检测 > 自动合并.
+> Trigger: user says "dict dedup" / "dict consolidation" / "constant conflict" / "duplicate id definitions" / "dedup dictionary" / "unify error codes" / "scattered enums" / "merge duplicate definitions"
+> Scope: dict/enum/constant definitions only (id:description / status / error_code / role / permission, etc.)
+> Hazard: multiple contradictory definitions of the same id -> the program takes the wrong branch -> hard-to-trace bugs (no exception raised, only behavior drift)
+> **Style**: ponytail minimalism. One home per dict; elsewhere only re-exports allowed. Conflict detection > auto-merge.
 
-## 4 类问题分类 (核心)
+## 4-Category Problem Classification (core)
 
-> 路由入口: SKILL.md 路由表 Dict Dedup Subflow 行. **完整定义 = 本文档自身** — 4 类问题分类 (下表) + Phase 0-5 检测/处理 pipeline + YAGNI + 已知坑.
+> Routing entry: the Dict Dedup Subflow row of the SKILL.md routing table. **Full definition = this document itself** — 4-category problem classification (table below) + Phase 0-5 detect/fix pipeline + YAGNI + known pitfalls.
 
-| 类型 | 含义 | 处理 |
+| Category | Meaning | Handling |
 |------|------|------|
-| **DUPLICATE** | 完全相同的多份定义 (值/结构一致) | 自动合并: 留 1 处权威, 别处改 import / re-export |
-| **CONFLICT** | 同名字段值不一致 (矛盾定义) | **停下问人** — 哪个是真值? 不自动覆盖 |
-| **STALE** | 无 caller 的过时副本 (可删) | 删 + 同步 git rm |
-| **REVERSE-MISSING** | 有 a→b 但缺 b→a 反查 (lookup 表常漏) | 补反向 dict, 或统一用 bidict |
+| **DUPLICATE** | Multiple identical definitions (same value/structure) | Auto-merge: keep 1 authoritative copy, turn the others into imports / re-exports |
+| **CONFLICT** | Same-named fields with different values (contradictory definitions) | **Stop and ask a human** — which one is the truth? Never auto-overwrite |
+| **STALE** | Outdated copy with no callers (deletable) | Delete + matching `git rm` |
+| **REVERSE-MISSING** | a→b exists but the b→a reverse lookup is missing (lookup tables often omit it) | Add the reverse dict, or standardize on bidict |
 
-## 目录
+## Table of Contents
 
-- [Phase 0: 快速扫描 (30s)](#phase-0-快速扫描-30s)
-1. [Phase 1: 字典定义扫描](#phase-1-字典定义扫描)
-2. [Phase 2: 4 类通用检测 pipeline](#phase-2-4-类通用检测-pipeline)
-3. [Phase 3: 矛盾检测 + 冲突报告](#phase-3-矛盾检测--冲突报告)
-4. [Phase 4: 选定权威源 + 合并](#phase-4-选定权威源--合并)
-5. [Phase 5: caller 迁移 + 验证](#phase-5-caller-迁移--验证)
-6. [典型案例: _LEVEL_CFG CONFLICT](dict-dedup-case-levelcfg.md)
+- [Phase 0: Quick Scan (30s)](#phase-0-quick-scan-30s)
+1. [Phase 1: Dict Definition Scan](#phase-1-dict-definition-scan)
+2. [Phase 2: generic 4-category detection pipeline](#phase-2-same-id-multi-source-detection-with-4-category-classification)
+3. [Phase 3: Contradiction Detection + Conflict Report](#phase-3-contradiction-detection--conflict-report)
+4. [Phase 4: Select Authoritative Source + Merge](#phase-4-select-authoritative-source--merge)
+5. [Phase 5: Caller Migration + Verification](#phase-5-caller-migration--verification)
+6. [Typical case: _LEVEL_CFG CONFLICT](dict-dedup-case-levelcfg.md)
 
 ---
 
-## Phase 0: 快速扫描 (30s)
+## Phase 0: Quick Scan (30s)
 
-> **真实场景 80% 是 DUPLICATE + CONFLICT**, STALE/REVERSE-MISSING 是少数.
-> 完整 Phase 1-2 要扫 AST + 全文 grep, 慢. 先跑这个, 看清单再决定要不要深扫.
+> **80% of real cases are DUPLICATE + CONFLICT**; STALE/REVERSE-MISSING are the minority.
+> Full Phase 1-2 requires an AST scan + whole-repo grep, which is slow. Run this first and review the list before deciding whether to deep-scan.
 
 ```bash
-# 0.1 找所有 module-level dict 字面量 (一行 grep, 不跑 Python)
+# 0.1 Find all module-level dict literals (one-line grep, no Python run)
 grep -rnE '^\s*_*[A-Z][A-Z_0-9]+_*\s*[:=]\s*[\{\[]' ${REPO_ROOT}/ \
   --include="*.py" | grep -v test | sort -t: -k3 > /tmp/dict-snapshot.txt
 
-# 0.2 计数 + 按 dict 名字聚合
+# 0.2 Count + aggregate by dict name
 awk -F: '{print $3}' /tmp/dict-snapshot.txt | sort | uniq -c | sort -rn | head -30
-# 输出:
-#   8 _LEVEL_CFG          ← 定义了 8 处? 必有问题
+# Output:
+#   8 _LEVEL_CFG          ← defined in 8 places? Something is wrong
 #   3 _PRESET_DOMAIN_MAP
 #   2 STAGES
 #   1 _DEPTH_WHITELIST
 ```
 
-**判断**:
+**Interpretation**:
 
-| 计数 | 含义 | 下一步 |
+| Count | Meaning | Next step |
 |---|---|---|
-| **≥3 处同名** | 必有重复或矛盾 | 跑 Phase 2 详细 fingerprint |
-| **恰好 2 处同名** | 可能是 DUPLICATE 也可能是 CONFLICT | 跑 Phase 2 |
-| **1 处** | 单一定义, 跳过 | (除非 caller 散落) |
+| **≥3 same-named copies** | Duplicates or conflicts guaranteed | Run Phase 2 detailed fingerprinting |
+| **Exactly 2 same-named copies** | Could be DUPLICATE or CONFLICT | Run Phase 2 |
+| **1 copy** | Single definition, skip | (unless callers are scattered) |
 
-**适用场景**:
-- 用户问"代码里 X 有没有重复定义" → 直接跑 0.1+0.2
-- 完整 dict dedup 跑前先用 0.2 看预算 — 30 处以上慢慢做, 10 处以下快速合并
-- CI gate: 0.2 输出 > 阈值 (e.g. 5 处同名) 直接 fail
+**When to use**:
+- Asked "does X have duplicate definitions in the code" -> run 0.1+0.2 directly
+- Before a full dict dedup run, use 0.2 to size the budget — 30+ sites: go slowly; under 10: merge fast
+- CI gate: 0.2 output above threshold (e.g. 5 same-named copies) fails immediately
 
 ---
 
-## Phase 1: 字典定义扫描
+## Phase 1: Dict Definition Scan
 
-**目的**: 找出所有 id:描述 风格的字典 / 枚举 / 常量定义.
+**Goal**: find all id:description-style dicts / enums / constant definitions.
 
 ```bash
-# 1.1 Python: 找所有 Dict/Enum/常量定义
+# 1.1 Python: find all Dict/Enum/constant definitions
 grep -rnE '^\s*[A-Z][A-Z_0-9]+\s*[:=]' ${REPO_ROOT}/ --include="*.py" | grep -v test | head -50
 
-# 1.2 找 ERROR_CODE / STATUS / ROLE / PERMISSION 命名集中地
+# 1.2 Find where ERROR_CODE / STATUS / ROLE / PERMISSION names concentrate
 find ${REPO_ROOT} -type f \( -name "*error*.py" -o -name "*status*.py" -o -name "*role*.py" -o -name "*permission*.py" -o -name "*enum*.py" -o -name "*constant*.py" \) -not -path '*/.git/*' | head
 
-# 1.3 Go: 找 const 块
+# 1.3 Go: find const blocks
 grep -rnE '^\s*(const|var)\s+[A-Z][A-Z_]+\s*=' ${REPO_ROOT}/ --include="*.go" | head -30
 
-# 1.4 Node/TS: 找 enum / const 对象
+# 1.4 Node/TS: find enum / const objects
 grep -rnE 'export\s+(const|enum)\s+[A-Z][A-Z_]+' ${REPO_ROOT}/ --include="*.ts" --include="*.js" | head -30
 
-# 1.5 找 ID 命名相似但散落多处的常量 (例: USER_STATUS_ACTIVE 在 a.py 和 b.py 各定义)
+# 1.5 Find constants with similar ID names scattered across files (e.g. USER_STATUS_ACTIVE defined in both a.py and b.py)
 grep -rnE 'USER_(STATUS|ROLE)_[A-Z]+|ERROR_CODE_[A-Z_]+|ORDER_STATE_[A-Z]+' ${REPO_ROOT}/ --include="*.py" | head -50
 ```
 
-**deliverable**: `docs/audit/<date>-dict-snapshot.md` 含所有 id 命名空间清单.
+**deliverable**: `docs/audit/<date>-dict-snapshot.md` listing every id namespace.
 
 ---
 
-## Phase 2: 同 id 多源检测 (含 4 类分类)
+## Phase 2: Same-id Multi-source Detection (with 4-category classification)
 
-**核心检测**: 同一个 id 字符串在多处定义 (尤其描述/数值不一致). 按 fingerprint 聚类后分 4 类.
+**Core check**: the same id string defined in multiple places (especially with inconsistent descriptions/values). Cluster by fingerprint, then classify into the 4 categories.
 
-### 2.1 Python: 按 fingerprint (json.dumps sorted) 聚类
+### 2.1 Python: cluster by fingerprint (json.dumps sorted)
 
 ```bash
-# 2.1.1 找所有 module-level dict/set/list 字面量
+# 2.1.1 Find all module-level dict/set/list literals
 grep -rnE '^\s*_*[A-Z][A-Z_0-9]+_*\s*[:=]\s*[\{\[]' ${REPO_ROOT}/ --include="*.py" | grep -v test | head -100
 ```
 
 ```python
-# 2.1.2 fingerprint 聚类 + 4 类分类
+# 2.1.2 fingerprint clustering + 4-category classification
 python3 << 'PYEOF'
 import ast, pathlib, json, collections
 
@@ -123,44 +123,44 @@ for py in repo.rglob("*.py"):
             try:
                 val = ast.literal_eval(node.value)
             except (ValueError, SyntaxError):
-                continue  # 跳过不可字面量求值的 (含函数调用等)
-            # dict/set 转 sorted JSON 当 fingerprint (顺序无关)
+                continue  # skip values that cannot be literal-evaluated (function calls, etc.)
+            # convert dict/set to sorted JSON as the fingerprint (order-insensitive)
             if isinstance(val, (dict, set)):
                 fp = json.dumps(val, sort_keys=True, ensure_ascii=False)
             else:
                 fp = repr(val)
             by_name[tgt.id].append((str(py), node.lineno, fp, val))
 
-# 输出 4 类
+# output the categories
 for name, defs in by_name.items():
     if len(defs) <= 1:
         continue
     fps = {d[2] for d in defs}
     files = {d[0] for d in defs}
     if len(fps) == 1:
-        # 所有定义值一致 → DUPLICATE
+        # all definitions hold the same value -> DUPLICATE
         print(f"[DUPLICATE] {name} (value={fps.pop()[:80]}) in {len(defs)} places across {len(files)} files")
         for path, line, fp, val in defs:
             print(f"   {path}:{line}")
     elif len(fps) > 1:
-        # 值不一致 → CONFLICT (必须问人)
+        # values differ -> CONFLICT (must ask a human)
         print(f"[CONFLICT] {name}")
         for path, line, fp, val in defs:
             print(f"   {path}:{line} = {fp[:80]}")
 PYEOF
 ```
 
-### 2.2 STALE 检测 (无 caller 的过时副本)
+### 2.2 STALE detection (outdated copies with no callers)
 
 ```bash
-# 2.2.1 找所有 dict 字面量, 然后逐个检查是否被 import / 引用
+# 2.2.1 Find all dict literals, then check each one for imports / references
 python3 << 'PYEOF'
 import ast, pathlib, sys
 
 repo = pathlib.Path("${REPO_ROOT}")
-defined = set()  # 所有被定义的 dict 名字
+defined = set()  # every defined dict name
 
-# 找定义
+# find definitions
 for py in repo.rglob("*.py"):
     if "test" in str(py) or "/.venv/" in str(py):
         continue
@@ -174,7 +174,7 @@ for py in repo.rglob("*.py"):
                 if isinstance(tgt, ast.Name) and tgt.id.isupper():
                     defined.add(tgt.id)
 
-# 找引用
+# find references
 referenced = set()
 for py in repo.rglob("*.py"):
     try:
@@ -192,7 +192,7 @@ for py in repo.rglob("*.py"):
             if isinstance(base, ast.Name):
                 referenced.add(base.id)
 
-# STALE: 定义了但没引用
+# STALE: defined but never referenced
 stale = defined - referenced
 for name in sorted(stale):
     if name.startswith("_"): continue
@@ -200,10 +200,10 @@ for name in sorted(stale):
 PYEOF
 ```
 
-### 2.3 REVERSE-MISSING 检测 (有 a→b 但缺 b→a)
+### 2.3 REVERSE-MISSING detection (a→b exists but b→a missing)
 
 ```python
-# 2.3.1 检查每个 dict 是否有反向 lookup
+# 2.3.1 Check whether each dict has a reverse lookup
 python3 << 'PYEOF'
 import ast, pathlib
 
@@ -227,28 +227,28 @@ for py in repo.rglob("*.py"):
                 continue
             if not isinstance(val, dict):
                 continue
-            # 启发式: dict 名字含 _MAP / _TO / _INDEX → 期望有反向
+            # heuristic: dict name contains _MAP / _TO / _INDEX -> a reverse is expected
             if any(k in tgt.id for k in ("_MAP", "_TO_", "_INDEX", "_LOOKUP")):
-                reverse = tgt.id + "_REVERSE"  # 常见命名
-                # 全文搜反向是否存在
-                # 简化: 只标记, 不强求
+                reverse = tgt.id + "_REVERSE"  # common naming
+                # search the whole repo for whether the reverse exists
+                # simplified: flag only, do not enforce
                 keys_unique = len(set(str(v) for v in val.values())) == len(val)
                 if keys_unique:
-                    # value 唯一 → 反向有价值
+                    # values unique -> a reverse is worthwhile
                     print(f"[REVERSE-MISSING?] {tgt.id} at {py}:{node.lineno} (values unique, consider {reverse})")
 PYEOF
 ```
 
-**deliverable**: 候选重复 id 清单 + 每处定义位置 + 4 类分类 (DUPLICATE/CONFLICT/STALE/REVERSE-MISSING).
+**deliverable**: list of candidate duplicate ids + each definition location + 4-category classification (DUPLICATE/CONFLICT/STALE/REVERSE-MISSING).
 
 ---
 
-## Phase 3: 矛盾检测 + 冲突报告
+## Phase 3: Contradiction Detection + Conflict Report
 
-**核心**: 同 id 多处定义的**值或描述是否一致**.
+**Core**: whether the **values or descriptions** of the same id's multiple definitions agree.
 
 ```bash
-# 3.1 提取每个 id 在每处的"右侧值" (Python Dict 字面量)
+# 3.1 Extract each id's "right-hand value" at every site (Python dict literals)
 python3 << 'PYEOF'
 import ast, pathlib, sys, collections
 
@@ -275,7 +275,7 @@ for py in repo.rglob("*.py"):
                     except Exception:
                         pass
 
-# 找出值不一致的
+# find the ones with differing values
 for name, defs in dup_report.items():
     if len(defs) > 1:
         values = {d[2] for d in defs}
@@ -288,68 +288,68 @@ for name, defs in dup_report.items():
 PYEOF
 ```
 
-**冲突分级**:
+**Conflict grading**:
 
-| 类型 | 描述 | 严重度 |
+| Category | Description | Severity |
 |------|------|--------|
-| **CONFLICT (值不同)** | 同 id 不同值 | 🔴 Critical — 必须合并 |
-| **DUPLICATE-OK (值同)** | 同 id 相同值散落 | 🟡 Warning — 建议合并 (DRY) |
-| **LEGACY (有 deprecation 标记)** | 旧版带 `_LEGACY` 后缀 | 🟢 OK — 保留 + 加注释 |
+| **CONFLICT (values differ)** | Same id, different values | 🔴 Critical — must merge |
+| **DUPLICATE-OK (values identical)** | Same id, identical value, scattered | 🟡 Warning — merging recommended (DRY) |
+| **LEGACY (deprecation marker present)** | Old version carrying the `_LEGACY` suffix | 🟢 OK — keep + annotate |
 
-**真值识别 (CONFLICT 必做, 不靠算法猜)**:
+**Truth identification (mandatory for CONFLICT; never guessed by an algorithm)**:
 
-CONFLICT 必须由人/证据决定哪个是真值. 任何启发式 (多数票/最近改/最长字段) 都可能错.
+A human/evidence must decide which CONFLICT side is the truth. Any heuristic (majority vote / most recent edit / longest fields) can be wrong.
 
-| 证据来源 | 用法 | 权重 |
+| Evidence source | Usage | Weight |
 |---------|------|------|
-| **代码注释** | "权威源"/"统一入口"/"single source of truth" 等字样 | 🔴 强 |
-| **git log** | `git log -p <file>` 看哪个是新增哪个是历史遗留 | 🔴 强 |
-| **文件 mtime** | `stat -c %y <file>` 时间戳最近的优先 | 🟡 中 |
-| **调用频次** | `grep -rn "<NAME>"` 谁被引用多, 谁更可能是设计 API | 🟡 中 |
-| **import 链** | 谁是源头 module (被多个其他模块 import), 谁就是权威 | 🟡 中 |
-| **测试覆盖** | 有 test 覆盖那份更可能是设计 (contract), 没测试那份更可能是临时副本 | 🟢 弱 |
+| **Code comments** | wording like "authoritative source" / "single entry point" / "single source of truth" | 🔴 Strong |
+| **git log** | `git log -p <file>` shows which one is new and which one is legacy | 🔴 Strong |
+| **File mtime** | `stat -c %y <file>` — the most recent timestamp wins | 🟡 Medium |
+| **Reference count** | `grep -rn "<NAME>"` — the more referenced one is likelier the designed API | 🟡 Medium |
+| **Import chain** | whoever is the source module (imported by many other modules) is the authority | 🟡 Medium |
+| **Test coverage** | the copy covered by tests is likelier the designed contract; the untested copy is likelier a temporary duplicate | 🟢 Weak |
 
-**典型判断流程** (案例 `_LEVEL_CFG`):
+**Typical decision flow** (case `_LEVEL_CFG`):
 
-1. `git log --follow backend/core/stages/_config.py` → 新版 mtime 后, 加了"统一入口"注释 → 🔴 权威
-2. `git log --follow backend/core/research_phases.py` → 旧版 mtime 早, 长期没动 → 旧副本
-3. `grep -rn "_LEVEL_CFG" backend/` → 4 处 import, 2 旧 2 新, import 链不统一
-4. **决策**: 留 `_config.py`, 删 `research_phases.py` 那份, 旧 caller 改 import
+1. `git log --follow backend/core/stages/_config.py` → newer mtime, gained a "single entry point" comment → 🔴 authoritative
+2. `git log --follow backend/core/research_phases.py` → older mtime, untouched for a long time → old copy
+3. `grep -rn "_LEVEL_CFG" backend/` → 4 import sites, 2 old 2 new, import chain inconsistent
+4. **Decision**: keep `_config.py`, delete the `research_phases.py` copy, migrate old callers to the new import
 
-**为什么不能算法决策**:
+**Why algorithmic decisions fail**:
 
-| 自动决策 | 为什么错 |
+| Automatic decision | Why it is wrong |
 |---------|---------|
-| 按"多数票" | 数值 500 vs 300 都是合理范围, 哪边写错不知道 |
-| 按"最近修改" | admin 改了可能是因为运营调整, 不是 bug 修复 |
-| 按"最长那个" | 字段多不代表更权威, 可能多出的是 noise |
-| 按"权威源"标记 | 如果没标记权威源, 算法不知道 |
+| "Majority vote" | Both 500 vs 300 sit in a plausible range; no way to know which side is wrong |
+| "Most recent edit" | An admin's edit may reflect an operations adjustment, not a bug fix |
+| "The longest one" | More fields does not mean more authoritative; the extras may be noise |
+| An "authoritative source" marker | If no source is marked authoritative, the algorithm cannot know |
 
-**真值识别 > 自动合并**. 本案靠 `commit message + 文件 mtime + 代码注释 + import 链` 四条证据, 不是算法猜的.
+**Truth identification > auto-merge**. This case rested on four pieces of evidence — `commit message + file mtime + code comments + import chain` — not on an algorithmic guess.
 
-**deliverable**: `docs/audit/<date>-dict-conflicts.md` 含:
-- Critical 冲突清单 (值不同)
-- Warning 重复清单 (值同, 散落)
-- 矛盾定义决策 (谁权威)
+**deliverable**: `docs/audit/<date>-dict-conflicts.md` containing:
+- Critical conflict list (differing values)
+- Warning duplicate list (identical values, scattered)
+- Contradictory-definition decision (which one is authoritative)
 
 ---
 
-## Phase 4: 选定权威源 + 合并
+## Phase 4: Select Authoritative Source + Merge
 
-**决策原则** (按优先级):
+**Decision principles** (by priority):
 
-1. **官方/外部定义** (HTTP status code, ISO 标准, 协议常量) → 永不变, 直接引用, 不内联
-2. **业务核心字典** (USER_ROLE / ORDER_STATE / ERROR_CODE) → 集中到 `constants/` 或 `enums/` 顶层模块
-3. **局部字典** (单模块内部状态) → 留在原文件, 但加 `__all__` 显式 export
-4. **测试 fixture** → 不合并, 测试独立
+1. **Official/external definitions** (HTTP status codes, ISO standards, protocol constants) → never change; reference directly, never inline
+2. **Business-core dicts** (USER_ROLE / ORDER_STATE / ERROR_CODE) → centralize in a top-level `constants/` or `enums/` module
+3. **Local dicts** (single-module internal state) → keep in the original file, but export explicitly via `__all__`
+4. **Test fixtures** → do not merge; tests stay independent
 
-**执行步骤**:
+**Execution steps**:
 
 ```bash
-# 4.1 建权威目录
-mkdir -p ${REPO_ROOT}/src/constants  # 按项目结构, 例 Python 是 src/, Go 是 pkg/
+# 4.1 Create the authoritative directory
+mkdir -p ${REPO_ROOT}/src/constants  # match the project layout, e.g. src/ for Python, pkg/ for Go
 
-# 4.2 写权威定义 (例 user_role.py)
+# 4.2 Write the authoritative definition (example user_role.py)
 cat > ${REPO_ROOT}/src/constants/user_role.py << 'EOF'
 """User role constants. Single source of truth.
 
@@ -364,69 +364,69 @@ class UserRole(str, Enum):
     SUPER_ADMIN = "super_admin"
 EOF
 
-# 4.3 删/改其他位置的重复定义
-# 例: 删除 a.py 里的 USER_ROLE_DICT, b.py 里的 USER_ROLES 局部定义
-# 改: from src.constants.user_role import UserRole
+# 4.3 Delete/edit the duplicate definitions elsewhere
+# e.g. delete USER_ROLE_DICT in a.py and the local USER_ROLES definition in b.py
+# replace with: from src.constants.user_role import UserRole
 
-# 4.4 单次合并 1 commit
+# 4.4 One merge, one commit
 git add src/constants/
-git rm <旧定义文件 if 整文件删除>
+git rm <old definition file if deleting the whole file>
 git commit -m "refactor(dict): consolidate <name> to src/constants/ (<date>)"
 ```
 
-**反模式 (不要做)**:
-- ❌ 在每个旧定义处都加 `from constants import *` 然后保留旧名 — 双源仍同步风险
-- ❌ 用 dataclass 替代 enum — 失去穷尽性检查
-- ❌ 把所有字典塞一个 mega 文件 — 文件臃肿, 不如按域分多个
+**Anti-patterns (do not do)**:
+- ❌ Add `from constants import *` at every old definition site while keeping the old names — two sources still risk drift
+- ❌ Replace enums with dataclasses — loses exhaustiveness checking
+- ❌ Stuff every dict into one mega file — bloats the file; splitting by domain is better
 
 ---
 
-## Phase 5: caller 迁移 + 验证
+## Phase 5: Caller Migration + Verification
 
-**caller 迁移**: 把所有旧位置的引用改成新位置.
+**Caller migration**: point every reference at the old location to the new location.
 
 ```bash
-# 5.1 找 caller
+# 5.1 Find callers
 grep -rn "USER_ROLE_\|<OLD_NAME>" ${REPO_ROOT}/ --include="*.py" | grep -v "src/constants/"
 
-# 5.2 批量替换 (用 codemod 或 sed)
-# 例: 把所有 "from a import USER_ROLE_DICT" 改成 "from src.constants.user_role import UserRole"
-# 然后 dict[key] → UserRole(key)
+# 5.2 Bulk replace (codemod or sed)
+# e.g. rewrite every "from a import USER_ROLE_DICT" to "from src.constants.user_role import UserRole"
+# then dict[key] -> UserRole(key)
 
-# 5.3 验证测试 + lint
+# 5.3 Verify tests + lint
 ${TEST_RUNNER}
 ruff check ${REPO_ROOT}/
 mypy ${REPO_ROOT}/
 ```
 
-**结束标准**:
-- `grep -rn "<OLD_NAME>"` 0 命中 (除文档/注释)
-- `grep -rnE "^\s*[A-Z][A-Z_0-9]+\s*=\s*["\x27]" ${REPO_ROOT}/ --include="*.py" | grep -v "src/constants/" | grep -v test` 0 命中 (无散落定义)
-- `grep -rnE "if .* in USER_ROLE_DICT" ${REPO_ROOT}/` 全用新 import
-- ${TEST_RUNNER} 全绿
-- type checker 0 错误
+**Done criteria**:
+- `grep -rn "<OLD_NAME>"` 0 hits (docs/comments excepted)
+- `grep -rnE "^\s*[A-Z][A-Z_0-9]+\s*=\s*["\x27]" ${REPO_ROOT}/ --include="*.py" | grep -v "src/constants/" | grep -v test` 0 hits (no scattered definitions)
+- `grep -rnE "if .* in USER_ROLE_DICT" ${REPO_ROOT}/` — everything uses the new import
+- ${TEST_RUNNER} all green
+- type checker 0 errors
 
-**回滚**: 走通用硬约束 #3 (rsync 备份 + git revert)
-
----
-
-## YAGNI 注意 (零提前防御)
-
-- ❌ 不要为"将来可能加新 status"提前写 metaclass 注册表
-- ❌ 不要把字典定义做动态加载 (除非项目已经用插件系统)
-- ❌ 不要为不同 namespace 的 id 加版本号 (例: USER_ROLE_V1_USER) — 真需要时再加
-- ✅ **现状优先**: 出现几处就合并几处, 不为假想需求提前抽象
+**Rollback**: follow generic hard constraint #3 (rsync backup + git revert)
 
 ---
 
-## 已知坑
+## YAGNI Notes (zero upfront defense)
 
-| 坑 | 现象 | 解决 |
+- ❌ Do not write a metaclass registry up front for "may add new statuses later"
+- ❌ Do not make dict definitions dynamically loaded (unless the project already uses a plugin system)
+- ❌ Do not add version numbers to ids across namespaces (e.g. USER_ROLE_V1_USER) — add versioning only when truly needed
+- ✅ **Current state first**: merge exactly as many sites as exist; do not abstract ahead of imaginary requirements
+
+---
+
+## Known Pitfalls
+
+| Pitfall | Symptom | Fix |
 |---|---|---|
-| `str` enum vs `int` enum 选错 | DB 存 int, 代码用 str, 反序列化错 | 业务字典用 `str` enum, 协议字典 (HTTP status) 跟随原标准 |
-| 测试 fixture 用了旧 dict 字面量 | 合并后测试 broken | grep 测试文件, 同步迁移 (测试可改) |
-| 第三方库 enum 不让继承 | 想加业务方法失败 | 不要继承第三方 enum, 自己 wrap 一层 |
-| enum 值含特殊字符 (空格/连字符) | 反序列化失败 | 只用 ASCII alphanumeric + underscore |
-| 字典在数据库迁移脚本里也用了 | DB 和 代码不同步 | 字典唯一源 = 代码, DB 用 lookup table + migration 同步 |
+| `str` enum vs `int` enum chosen wrongly | DB stores int, code uses str, deserialization breaks | Use `str` enums for business dicts; protocol dicts (HTTP status) follow the original standard |
+| Test fixtures still use the old dict literals | Tests break after the merge | grep the test files and migrate them in the same pass (tests may be edited) |
+| Third-party enum forbids subclassing | Adding business methods fails | Do not subclass the third-party enum; wrap it in a local wrapper layer |
+| Enum values contain special characters (spaces/hyphens) | Deserialization fails | Use ASCII alphanumerics + underscore only |
+| The dict is also used in database migration scripts | DB and code drift apart | The single source for the dict = code; the DB uses a lookup table + migration to stay in sync |
 
 ---

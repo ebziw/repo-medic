@@ -1,93 +1,93 @@
-# Dict Dedup — 典型案例: _LEVEL_CFG CONFLICT
+# Dict Dedup — Typical Case: _LEVEL_CFG CONFLICT
 
-> 90 行 case study: 自 [dict-dedup.md](dict-dedup.md) §Phase 3 真值识别 的"典型判断流程"拆出展开 (原全档 L434+ 位置, 重组后以链接章节为准)
-> 主文档见 [dict-dedup.md](dict-dedup.md): Phase 0-5 (含 4 类问题分类 + CONFLICT 真值识别证据表) + YAGNI + 已知坑
+> 90-line case study: split out and expanded from the "Typical decision flow" of [dict-dedup.md](dict-dedup.md) §Phase 3 truth identification (originally at L434+ of the single-file doc; after reorganization the linked section is authoritative)
+> Main document: [dict-dedup.md](dict-dedup.md) — Phase 0-5 (incl. 4-category problem classification + the CONFLICT truth-identification evidence table) + YAGNI + known pitfalls
 
-## 典型案例: `_LEVEL_CFG` CONFLICT
+## Typical Case: `_LEVEL_CFG` CONFLICT
 
-> **真实 bug 教学案例**. 这是为什么字典整合 skill 必须存在的核心原因 — 不是 dedup, 是发现潜在 silent bug.
+> **Real-bug teaching case**. This is the core reason a dict-consolidation skill must exist — not dedup, but uncovering latent silent bugs.
 
-### 业务背景
+### Business Context
 
-`_LEVEL_CFG` 定义 4 种研究深度的写作参数 (学术研究 / 专业讨论 / 严肃媒体 / 社交媒体):
+`_LEVEL_CFG` defines writing parameters for 4 research depths (academic research / professional discussion / serious media / social media):
 
 ```python
-# 学术研究配置示例
-"学术研究": {
-    "max_tokens": 384000,      # LLM 输出上限
-    "max_chars": 35000,         # 合成阶段字符上限
-    "thinking": True/False,     # 是否启用思考链
-    "search_web": 20,           # 外网搜索次数
-    "search_academic": 6,       # 学术引擎搜索次数
-    "compress": "full",         # 压缩模式
-    "mimo_eval": True,          # 是否启用 mimo 模型评估
-    "glm_review": True,         # 是否启用 glm 复审
-    # ... 其他参数
+# Academic research config example
+"Academic Research": {
+    "max_tokens": 384000,      # LLM output cap
+    "max_chars": 35000,         # character cap for the synthesis stage
+    "thinking": True/False,     # whether the thinking chain is enabled
+    "search_web": 20,           # web search count
+    "search_academic": 6,       # academic engine search count
+    "compress": "full",         # compression mode
+    "mimo_eval": True,          # whether mimo model evaluation is enabled
+    "glm_review": True,         # whether glm re-review is enabled
+    # ... other parameters
 }
 ```
 
-### 这次碰到的 bug
+### The Bug Hit This Time
 
-代码里有**两份完全独立**的 `_LEVEL_CFG`, 两份只差 1 行 (`thinking` 字段 True vs False):
+The code contains **two fully independent** `_LEVEL_CFG` copies, differing in exactly 1 line (the `thinking` field, True vs False):
 
 ```python
-# 位置 1: stages/_config.py:34 (新版, 应该是真值)
-"学术研究": { ..., "thinking": False, ... }
-"专业讨论": { ..., "thinking": False, ... }
+# Location 1: stages/_config.py:34 (newer copy, presumed truth)
+"Academic Research": { ..., "thinking": False, ... }
+"Professional Discussion": { ..., "thinking": False, ... }
 
-# 位置 2: research_phases.py:952 (旧版, 未删)
-"学术研究": { ..., "thinking": True, ... }    # ← 矛盾!
-"专业讨论": { ..., "thinking": True, ... }    # ← 矛盾!
+# Location 2: research_phases.py:952 (older copy, never deleted)
+"Academic Research": { ..., "thinking": True, ... }    # ← contradiction!
+"Professional Discussion": { ..., "thinking": True, ... }    # ← contradiction!
 ```
 
-**实际生效取决于 import 链**:
+**Which one takes effect depends on the import chain**:
 
-| caller | 从哪 import | 用哪份 | thinking 值 |
+| caller | imports from | uses which copy | thinking value |
 |--------|-----------|--------|------------|
-| `stage_compose.py` | `stages._config` | **新版** | False |
-| `research_phases.py:968` `_tokens_for_length` | 本地副本 | **旧版** | True |
-| `research_pipeline.py` | `research_phases` | **旧版** | True |
+| `stage_compose.py` | `stages._config` | **newer** | False |
+| `research_phases.py:968` `_tokens_for_length` | local copy | **older** | True |
+| `research_pipeline.py` | `research_phases` | **older** | True |
 
-### 后果
+### Consequences
 
-1. **同一深度在不同阶段行为不一致** — compose 阶段认为"学术研究不开 thinking", 但 token 计算认为"要开", LLM 实际请求 token 上限不同, **可能爆 token / 截断**
-2. **用户看不出来** — 没有 WARN, 调用方以为拿到了 `_LEVEL_CFG`, 实际拿到了过期副本
-3. **测试无法发现** — 测试只测函数返回值, 不验证"两份 dict 是否一致"
+1. **The same depth behaves inconsistently across stages** — the compose stage believes "academic research disables thinking" while token calculation believes "enable it"; the LLM's actual requested token cap differs, **possibly blowing the token limit / truncating**
+2. **Invisible to users** — no WARN is raised; callers believe they received `_LEVEL_CFG` but actually got a stale copy
+3. **Tests cannot catch it** — tests only assert function return values and never verify "the two dicts agree"
 
-### DUPLICATE vs CONFLICT 对比 (本案教学)
+### DUPLICATE vs CONFLICT Comparison (teaching case)
 
-| 维度 | DUPLICATE (无害) | **CONFLICT (本案)** |
+| Dimension | DUPLICATE (harmless) | **CONFLICT (this case)** |
 |------|----------------|-------------------|
-| 表现 | 两份 dict **完全相同** | 字段值**不一致** |
-| 风险 | 仅维护负担 (改一处忘另一处) | 行为不一致, **silent bug** |
-| 检测 | grep + 指纹匹配即发现 | **必须逐字段 diff** |
-| 修复 | 删一份 + 改 re-export | **必须先判断哪个是真值才能动** |
+| Presentation | The two dicts are **identical** | Field values **differ** |
+| Risk | Maintenance burden only (edit one, forget the other) | Inconsistent behavior, **silent bug** |
+| Detection | grep + fingerprint matching finds it | **Requires a field-by-field diff** |
+| Fix | Delete one copy + switch to a re-export | **Must first decide which copy is the truth before touching anything** |
 
-### 真值识别 (本案关键)
+### Truth Identification (key to this case)
 
-> 真值识别 4 条证据表见 Phase 3. 本案具体应用:
+> The 4-row evidence table for truth identification is in Phase 3. Applied to this case:
 
-1. **`stages/_config.py` 文件 mtime 更新** — commit `2b4a9b4` 简化后改的
-2. **`research_phases.py:952` 长期没动** — 在 commit `70d102596` 前就在了
-3. **代码注释明示** — `_config.py` 标 "统一入口"
-4. **→ 删 `research_phases.py` 那份**, 所有 caller 改 import 自 `_config`
+1. **`stages/_config.py` has the newer file mtime** — edited during the simplification in commit `2b4a9b4`
+2. **`research_phases.py:952` untouched for a long time** — already present before commit `70d102596`
+3. **Code comments state it explicitly** — `_config.py` is marked "single entry point"
+4. **→ delete the `research_phases.py` copy**, and migrate every caller to import from `_config`
 
-### 处理流程 (本案教学)
+### Handling Flow (teaching case)
 
-1. AST 对比两处 fingerprint → 标 CONFLICT
-2. 输出两处逐字段 diff (`thinking: False vs True`)
-3. **停** — 让人/查 git history 决策真值
-4. 找到真值后:
-   - 权威源移到 `constants/level_cfg.py`
-   - `stages/_config.py` 改 `from constants.level_cfg import LEVEL_CFG` (re-export 兼容老 import)
-   - `research_phases.py:952` **整段删除** (不 re-export — 旧 API 已误用)
-   - 所有 caller 改 import
+1. Compare the two fingerprints via AST → flag CONFLICT
+2. Emit a field-by-field diff of the two sites (`thinking: False vs True`)
+3. **Stop** — let a human / git history decide the truth
+4. Once the truth is found:
+   - Move the authoritative source to `constants/level_cfg.py`
+   - Switch `stages/_config.py` to `from constants.level_cfg import LEVEL_CFG` (re-export keeps old imports working)
+   - **Delete the entire `research_phases.py:952` block** (no re-export — the old API was already misused)
+   - Migrate all callers to the new import
    - commit msg: `fix(dict): resolve _LEVEL_CFG CONFLICT, decided _config.py is truth (thinking=False)`
-5. 跑回归, baseline 行为不变 (新版本下所有阶段 thinking 统一 False, LLM 请求 token 上限一致)
+5. Run regression; baseline behavior unchanged (under the new version every stage uses thinking=False uniformly and the LLM request token cap is consistent)
 
-### 核心教训
+### Core Lessons
 
-- **字典整合 skill 的核心价值不是 dedup, 是发现 silent bug**.
-- CONFLICT 比 DUPLICATE 危险 100 倍: DUPLICATE 只增加维护负担, CONFLICT 直接让程序行为漂移.
-- 真值识别必须靠证据 (git log / mtime / 注释), 不是启发式算法.
-- 自动化工具永远不能替你做"哪个是真值"这个决策.
+- **The core value of a dict-consolidation skill is not dedup, it is uncovering silent bugs.**
+- CONFLICT is 100x more dangerous than DUPLICATE: DUPLICATE only adds maintenance burden, CONFLICT makes program behavior drift outright.
+- Truth identification must rest on evidence (git log / mtime / comments), not on heuristic algorithms.
+- Automated tooling must never be allowed to make the "which one is the truth" decision.

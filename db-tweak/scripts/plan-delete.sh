@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# plan-delete.sh — RENAME 字段/表为 PLAN_DELETE_*, 防误删
+# plan-delete.sh — RENAME column/table to PLAN_DELETE_*, prevent accidental DROP
 #
 # Usage:
 #   plan-delete.sh --table schema.old_table         # rename table
 #   plan-delete.sh --column schema.table.old_column # rename column
 #   plan-delete.sh --index schema.old_index          # rename index
 #
-# 流程: RENAME + 写 work-note 提醒 + 设 7 天后提请 user 审
+# Flow: RENAME + write work-note reminder + schedule user review after 7 days
 #
-# v0.7.5 恢复: 自 kb db-doctor 归档 (db-doctor.merged-into-project-doctor.20260902)
-# 迁入 project-doctor/scripts/db/ (位置对齐 kb@kb merge), work-note 路径 / 备份提示已泛化
-# (可用 WORKNOTE_DIR 覆盖).
+# v0.7.5 restored: from the kb db-doctor archive (db-doctor.merged-into-project-doctor.20260902)
+# moved into project-doctor/scripts/db/ (location aligned with kb@kb merge); work-note path /
+# backup hint generalized (override with WORKNOTE_DIR).
 
 set -euo pipefail
 
@@ -18,9 +18,9 @@ usage() {
   cat <<EOF
 Usage: $0 [--table schema.name | --column schema.table.column | --index schema.index]
 
-RENAME 目标为 PLAN_DELETE_<原名>, 记录 work-note 提醒 7 天后提请审。
+RENAME the target to PLAN_DELETE_<orig_name>, and write a work-note reminder to request review after 7 days.
 
-示例:
+Examples:
   $0 --table crawler_urls.raw_urls        # RENAME raw_urls TO PLAN_DELETE_raw_urls
   $0 --column public.users.legacy_flag   # RENAME COLUMN legacy_flag TO PLAN_DELETE_legacy_flag
 EOF
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     --column)  KIND=column;  TARGET="$2"; shift 2 ;;
     --index)   KIND=index;   TARGET="$2"; shift 2 ;;
     -h|--help) usage ;;
-    *) echo "未知参数: $1"; usage ;;
+    *) echo "unknown argument: $1"; usage ;;
   esac
 done
 
@@ -50,7 +50,7 @@ case "$KIND" in
     SQL="ALTER TABLE ${SCHEMA}.${OBJ} RENAME TO ${PLAN_NAME};"
     ;;
   column)
-    # schema.table.column → schema.table column
+    # schema.table.column -> schema.table + column
     PARTS=(${TARGET//./ })
     SCH="${PARTS[0]}.${PARTS[1]}"; COL="${PARTS[2]}"
     PLAN_NAME="PLAN_DELETE_${COL}"
@@ -69,9 +69,9 @@ echo "target: $TARGET"
 echo "plan:   $PLAN_NAME"
 echo "sql:    $SQL"
 echo ""
-read -p "确认执行? (y/N) " confirm && [[ "$confirm" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+read -p "Proceed? (y/N) " confirm && [[ "$confirm" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
 
-# 锁查双时钟 (铁律 7)
+# Lock wait + dual timeouts (iron rule 7)
 set +e
 psql -v ON_ERROR_STOP=1 <<EOF
 SET lock_timeout = '2s';
@@ -82,11 +82,11 @@ RC=$?
 set -e
 
 if [[ $RC -ne 0 ]]; then
-  echo "✗ RENAME 失败 (rc=$RC), 检查 lock_timeout 是否够"
+  echo "✗ RENAME failed (rc=$RC), check whether lock_timeout is enough"
   exit $RC
 fi
 
-# 写 work-note 提醒
+# Write work-note reminder
 WORKNOTE_DIR="${WORKNOTE_DIR:-$HOME/.cache/project-doctor/pending-drops}"
 AUDIT_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/audit-plan-delete.sh"
 mkdir -p "$WORKNOTE_DIR"
@@ -103,27 +103,27 @@ status: pending-review
 
 # Pending DROP: ${PLAN_NAME}
 
-RENAME 时间: ${TS}
-原对象: ${TARGET}
-提议 DROP 日期: ${PROPOSE_DROP_DATE} (7 天后)
+RENAME time: ${TS}
+Original object: ${TARGET}
+Proposed DROP date: ${PROPOSE_DROP_DATE} (7 days from now)
 
-## 流程
-- [ ] day 1-7: 完整回归测试 + 监控应用错误日志
-- [ ] day 7: 提请 user 审
-- [ ] day 7+: user 审通过 → 真 DROP (铁律 3 三核对 + 备份)
+## Flow
+- [ ] day 1-7: full regression testing + watch application error logs
+- [ ] day 7: request user review
+- [ ] day 7+: user approves -> real DROP (iron rule 3: triple check + backup)
 
-## 审计脚本
+## Audit script
 \`\`\`bash
 bash ${AUDIT_SCRIPT}
 \`\`\`
 EOF
 
 echo ""
-echo "✓ RENAME 完成"
-echo "✓ work-note 提醒写入: $WORKNOTE_DIR/${TS}-${PLAN_NAME}.md"
-echo "✓ 提议 DROP 日期: $PROPOSE_DROP_DATE"
+echo "✓ RENAME done"
+echo "✓ work-note reminder written: $WORKNOTE_DIR/${TS}-${PLAN_NAME}.md"
+echo "✓ proposed DROP date: $PROPOSE_DROP_DATE"
 echo ""
-echo "后续:"
-echo "  - 监控 7 天 (应用日志找 PLAN_DELETE_${OBJ})"
-echo "  - day 7 跑 audit-plan-delete.sh + 提请 user 审"
-echo "  - 真 DROP 前备份 DB (项目约定备份根, 如 ~/backup/db/<date>) + 三核对 FK/view/消费者"
+echo "Next steps:"
+echo "  - monitor for 7 days (grep application logs for PLAN_DELETE_${OBJ})"
+echo "  - day 7: run audit-plan-delete.sh + request user review"
+echo "  - back up the DB before the real DROP (project-conventioned backup root, e.g. ~/backup/db/<date>) + triple-check FK/view/consumers"

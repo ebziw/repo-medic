@@ -1,75 +1,75 @@
-# Code Review Subflow (project-doctor 子工作流)
+# Code Review Subflow (project-doctor sub-workflow)
 
-> 触发: 用户说 "code review" / "合入前检查" / "CR checklist" / "静默吞错检测"
-> 范围: 合入前机械可检查的规则集, 不靠靠感觉靠 checklist
-> **核心原则**: 规则必须机械可判定 (pass/fail), 不靠 "资深工程师感觉".
+> Trigger: the user says "code review" / "pre-merge check" / "CR checklist" / "silent-swallow detection"
+> Scope: the pre-merge, mechanically checkable rule set — rely on the checklist, not on feel
+> **Core principle**: rules must be mechanically decidable (pass/fail), not "senior engineer intuition".
 
-## 目录
+## Contents
 
 1. [no-silent-swallow (P0)](#no-silent-swallow-p0)
-2. [Edit-Read 配对 (P1)](#edit-read-配对-p1)
-3. [路由/配置 grep (P0)](#路由配置-grep-p0)
-4. [部署验证 (P1)](#部署验证-p1)
-5. [LLM 铁律 (P1)](#llm-铁律-p1)
-6. [引用/数据 (P2)](#引用数据-p2)
-7. [验证脚本](#验证脚本)
+2. [Edit-Read pairing (P1)](#edit-read-pairing-p1)
+3. [Routing/config grep (P0)](#routingconfig-grep-p0)
+4. [Deploy verification (P1)](#deploy-verification-p1)
+5. [LLM hard rules (P1)](#llm-hard-rules-p1)
+6. [References/data (P2)](#referencesdata-p2)
+7. [Verification scripts](#verification-scripts)
 
 ---
 
 ## no-silent-swallow (P0)
 
-**严重级**: error (阻塞合入)
+**Severity**: error (blocks merge)
 
-每个 `except Exception:` / `except <具体异常>:` 块必须满足以下任一条件, 否则 FAIL:
+Every `except Exception:` / `except <specific exception>:` block must satisfy one of the following conditions, otherwise FAIL:
 
-| # | 通过条件 | 识别方式 |
+| # | Pass condition | How to identify |
 |---|---|---|
-| 1 | 异常体含 WARN/ERROR 日志 | `_task_log(..., level='WARN')` / `logger.error(...)` / `logger.exception(...)` |
-| 2 | 显式重新抛出 | `raise` / `raise SomeException(...)` |
-| 3 | 嵌套 try 内层有日志, 外层 pass 是保护内层不炸 | 外层 `except: pass` 包着内层 `try: _task_log(...) except: pass` |
-| 4 | 异常体含 `_silent_fail(...)` 或 `bump_counter("fail.xxx")` | 调用即视为已观测 |
+| 1 | the except body logs at WARN/ERROR | `_task_log(..., level='WARN')` / `logger.error(...)` / `logger.exception(...)` |
+| 2 | explicit re-raise | `raise` / `raise SomeException(...)` |
+| 3 | nested try: inner logs, outer pass exists to keep the inner from blowing up | outer `except: pass` wrapping an inner `try: _task_log(...) except: pass` |
+| 4 | the except body contains `_silent_fail(...)` or `bump_counter("fail.xxx")` | the call itself counts as observed |
 
-**失败模式 (满足任一即 FAIL)**:
+**Failure patterns (any one = FAIL)**:
 
 ```python
-# ❌ 完全静默
+# ❌ fully silent
 except Exception:
     pass
 
-# ❌ 静默 fallback, 无日志
+# ❌ silent fallback, no log
 except Exception as e:
     return ""
 
-# ❌ 静默赋值, 无日志
+# ❌ silent assignment, no log
 except Exception:
     _refs_rows = []
 
-# ❌ 注释代替观测
+# ❌ comment in place of observation
 except Exception:
-    # 失败不阻塞
+    # failure does not block
     return None
 ```
 
-**正例 (PASS)**:
+**Good examples (PASS)**:
 
 ```python
-# ✅ 有日志 + fallback
+# ✅ has log + fallback
 except Exception as e:
-    _task_log(task_id, f'refs_rows 加载失败: {e}', level='WARN', stage='pipeline')
+    _task_log(task_id, f'refs_rows load failed: {e}', level='WARN', stage='pipeline')
     _refs_rows = []
 
-# ✅ 嵌套日志 (外层 pass 保护)
+# ✅ nested log (outer pass protects)
 except Exception:
     try:
         _task_log(...)
     except Exception:
         pass
 
-# ✅ 显式重新抛出
+# ✅ explicit re-raise
 except Exception:
     raise
 
-# ✅ 已记录 (_silent_fail)
+# ✅ already recorded (_silent_fail)
 except Exception:
     try:
         _silent_fail(task_id, 'event', 'reason')
@@ -77,120 +77,120 @@ except Exception:
         pass
 ```
 
-**机械检查命令**:
+**Mechanical check commands**:
 
 ```bash
-# 找出所有 bare except Exception: pass (最危险的)
+# find all bare except Exception: pass (the most dangerous)
 grep -rnE "except\s+Exception\s*:\s*$" ${REPO_ROOT}/ --include="*.py" -A1 | grep -B1 "^\s*pass\s*$"
 
-# 找出所有 except Exception: (不管后面跟什么)
+# find all except Exception: (regardless of what follows)
 grep -rnE "except\s+Exception\s*:\s*$" ${REPO_ROOT}/ --include="*.py" -A3
 
-# 找出所有 except: pass (更宽泛)
+# find all except: pass (broader)
 grep -rnE "except\s*:\s*$" ${REPO_ROOT}/ --include="*.py" -A1 | grep -B1 "^\s*pass\s*$"
 ```
 
-**判定**: 命中的每一行必须人工确认是否满足通过条件 1-4. 不满足 → FAIL.
+**Judgment**: each hit must be manually confirmed against pass conditions 1-4. Not satisfied → FAIL.
 
 ---
 
-## Edit-Read 配对 (P1)
+## Edit-Read pairing (P1)
 
-**规则**: Edit 工具对未 Read 文件 silent fail (返回成功但没真改).
+**Rule**: the Edit tool silently fails on files that were not Read (reports success without actually changing anything).
 
-**检查**:
-- 每次 Edit 调用前, 同一文件必须已 Read (同一 session context)
-- Edit 后立即 grep 验证改动真生效
-- cp 同步多环境后 md5sum 验证一致
+**Checks**:
+- Before every Edit call, the same file must already be Read (same session context)
+- After Edit, grep immediately to verify the change really landed
+- After cp-syncing across environments, verify consistency with md5sum
 
-**历史事故**: `main.py` router / `_call_llm.py` / `stage_search.py` / `vite.config.js` 均因 silent fail 导致用户看不到效果.
-
----
-
-## 通用模式 (任意项目适用)
-
-**规则**: 改路由/配置前 grep 全部副本 (多实例硬编码是 CONFLICT 源); 文档与数据矛盾时信数据并当场修文档.
-
-**部署验证 (P1)**:
-- [ ] 先 commit 再 git pull (dirty tree deploy 被静默冲掉)
-- [ ] 部署后验证 PID 变 + deployed_at 新 (`curl /api/build-check` 或等价)
-- [ ] cp 后必须 restart user service (worker/FastAPI 常驻进程)
-- [ ] `systemctl --user is-active <svc>` 确认 active
+**Historical incidents**: `main.py` router / `_call_llm.py` / `stage_search.py` / `vite.config.js` — silent fail left the user seeing no effect.
 
 ---
 
-## 前端 (JS/TS) 机械规则 (P1)
+## Generic patterns (apply to any project)
 
-> 触发: diff 含 `.vue/.js/.jsx/.ts/.tsx`. 前 8 条 grep 可判 (v0.7.9 扩), 后 10 条人工点检.
-> 全部泛化自 kb-104 Bug 20 (pdf.js v3) — 案例: projects/kb-104.md.
-> 路径 `${REPO_ROOT}/frontend/src/` 按项目前端源目录替换 (无则整节跳过).
+**Rule**: before changing routing/config, grep all copies (multi-instance hardcoding is a CONFLICT source); when docs contradict data, trust the data and fix the docs on the spot.
 
-**grep 可判**:
+**Deploy verification (P1)**:
+- [ ] commit first, then git pull (a dirty tree gets silently wiped by deploy)
+- [ ] after deploy, verify the PID changed + deployed_at is fresh (`curl /api/build-check` or equivalent)
+- [ ] after cp, restart the user service (worker/FastAPI resident processes)
+- [ ] `systemctl --user is-active <svc>` confirms active
+
+---
+
+## Frontend (JS/TS) mechanical rules (P1)
+
+> Trigger: the diff contains `.vue/.js/.jsx/.ts/.tsx`. The first 8 rules are grep-decidable (expanded in v0.7.9); the last 10 are manual spot checks.
+> All generalized from a real-world pdf.js v3 selector-scope incident (full case study archived separately).
+> Replace the path `${REPO_ROOT}/frontend/src/` with the project's frontend source directory (skip the whole section if there is none).
+
+**grep-decidable**:
 
 ```bash
-# 1. ArrayBuffer 直接传库无副本 (postMessage / getDocument({data: x}) 会 transfer → cache 空)
+# 1. ArrayBuffer passed straight to a library with no copy (postMessage / getDocument({data: x}) transfers it → cache empty)
 grep -rnE "getDocument\(\{ ?data: [a-zA-Z_]+|postMessage\([a-zA-Z_]+\)" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 通过条件: 传的是 .slice(0) 副本, 或原 buffer 一次性使用不再复用
+# pass condition: a .slice(0) copy is passed, or the original buffer is consumed once and never reused
 
-# 2. watchEffect/computed 体内对自身依赖 ref 赋值 (无限循环 → UI 冻结)
-#    人工确认: watchEffect 体内直接 srcDoc.value = ... (srcDoc 被 watchEffect 读)
+# 2. Assigning to a ref that the watchEffect/computed body itself depends on (infinite loop → UI freeze)
+#    manual check: the watchEffect body assigns srcDoc.value = ... directly (srcDoc is read by the watchEffect)
 grep -rnE "watchEffect" "${REPO_ROOT}/frontend/src/" 2>/dev/null
 
-# 3. 立即回调 (immediate:true / computed getter) 引用的 let/const 是否先声明
+# 3. Are the let/const referenced by immediate callbacks (immediate:true / computed getters) declared first
 grep -rnE "immediate: ?true" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 人工确认: watch 注册行之后才声明的变量, 被回调引用 → TDZ
+# manual check: a variable declared after the watch registration line but referenced by the callback → TDZ
 
-# 4. 一次性消费 flag 复位依赖 watch/event (泄漏 → 吞后续行为)
+# 4. One-shot consumption flag whose reset depends on watch/event (leak → swallows later behavior)
 grep -rnE "_skip[A-Za-z]+ ?= ?true|_pending[A-Za-z]* ?= ?true" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 人工确认: flag 是否被无条件复位, 还是等 watch fire (等 = 泄漏)
+# manual check: is the flag reset unconditionally, or waiting on a watch fire (waiting = leak)
 ```
 
-**v0.7.9 增补 (grep 可判)**:
+**v0.7.9 additions (grep-decidable)**:
 
 ```bash
-# 5. 固定 setTimeout 延迟做"先 A 后 B"顺序保证 (慢网络下反序 — 用完成 promise 门替代)
+# 5. Fixed setTimeout delay as an "A before B" ordering guarantee (reverses on slow networks — replace with a completion-promise gate)
 grep -rnE "setTimeout\([a-zA-Z]+, *[0-9]{2,4}\)" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 人工确认: 该延迟是否在跨异步顺序场景 (等某加载完再启动)? 是 → 换真实完成信号
+# manual check: does the delay span an async ordering scenario (start after something loads)? yes → switch to a real completion signal
 
-# 6. await 后写共享状态 (.value = / setX) 无 seq/token 校验 → out-of-order 晚到覆盖
-grep -rnE "await .*\n.*\.value = " "${REPO_ROOT}/frontend/src/" 2>/dev/null  # 多行需 -U
-# 人工确认: 慢异步结果写共享引用前, 是否有"我还是最新"校验 (token/seq/旧值比对)
+# 6. Writing shared state after await (.value = / setX) with no seq/token check → out-of-order late overwrite
+grep -rnE "await .*\n.*\.value = " "${REPO_ROOT}/frontend/src/" 2>/dev/null  # multi-line needs -U
+# manual check: before a slow async result writes a shared reference, is there an "I'm still latest" check (token/seq/old-value comparison)
 
-# 7. 全局串行锁 (promise 链) 无 watchdog → 锁内 fn 永不 settle = 永久冻结
+# 7. Global serial lock (promise chain) with no watchdog → a fn inside the lock that never settles = permanent freeze
 grep -rnE "Promise\.resolve\(\)\s*$|_withRenderLock|_renderQ|_lock = Promise" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 人工确认: 链式锁内 fn 是否可能永不 settle (依赖 worker/连接等可被杀资源)?
-#   是 → destroy 前 cancel + destroyed 标 + Promise.race watchdog 三件套
+# manual check: can a fn inside the chained lock never settle (depends on a killable resource like a worker/connection)?
+#   yes → the trio: cancel before destroy + destroyed flag + Promise.race watchdog
 
-# 8. 重型资源 (worker/连接) 每操作新建实例 → 每操作重复下载/握手
+# 8. Heavy resources (worker/connection) instantiated per operation → repeated download/handshake per operation
 grep -rnE "new (PDFWorker|Worker)\(|createConnection|new Pool" "${REPO_ROOT}/frontend/src/" 2>/dev/null
-# 人工确认: 循环/每请求内 new? 可共享单实例 + 用完即毁纪律?
+# manual check: new inside a loop/per request? can a single shared instance + destroy-after-use discipline work?
 ```
 
-**v0.7.9 增补 (人工点检)**:
+**v0.7.9 additions (manual spot checks)**:
 
-| # | 检查 | 反例 |
+| # | Check | Counter-example |
 |---|---|---|
-| 9 | 状态标志 (errorMsg/loading) 每个出口都清 | 只在失败分支清, 成功/提前返回路径残留 → v-show 永久隐藏 = 白屏 |
-| 10 | 批量预热/并发请求有限并发 (3-5 路) | forEach 直接 18 路 fetch, 后端每请求有计算 → 打满拖慢全 API |
+| 9 | state flags (errorMsg/loading) cleared on every exit | cleared only in the failure branch; success/early-return paths leave residue → v-show hides forever = blank screen |
+| 10 | batch warmup/concurrent requests capped (3-5 in flight) | forEach fires 18 fetches at once; the backend computes per request → saturates and slows every API |
 
-**人工点检 (每 diff 抽 5 处)**:
+**Manual spot checks (sample 5 per diff)**:
 
-| # | 检查 | 反例 |
+| # | Check | Counter-example |
 |---|---|---|
-| 5 | 解构/循环变量名与外层业务变量不重复 | `const [srcDoc] = await ...` 遮蔽外层 `srcDoc` ref |
-| 6 | 传给库的 buffer 有副本或一次性 | `getDocument({data: bytes})` 后 bytes 还被 cache 复用 |
-| 7 | 长生命周期缓存不存库实例 (doc/连接/worker) | `Map<pageNum, PDFDocumentProxy>` 当缓存 — 应存 bytes |
-| 8 | 像素验证检测逻辑先自测 | 判空 `rgb<250` 不查 alpha → opaque 白底误报空 |
+| 5 | destructured/loop variable names do not collide with outer business variables | `const [srcDoc] = await ...` shadows the outer `srcDoc` ref |
+| 6 | buffers handed to libraries are copied or single-use | after `getDocument({data: bytes})`, bytes is still reused by the cache |
+| 7 | long-lived caches do not store library instances (docs/connections/workers) | `Map<pageNum, PDFDocumentProxy>` used as cache — should store bytes |
+| 8 | pixel-verification detection logic self-tested first | blank check `rgb<250` ignores alpha → opaque white background misreports as empty |
 
-**机械判定**: #1 FAIL = 非副本直接传且 buffer 复用; #2 FAIL = watchEffect 体内写被追踪 ref; #3 FAIL = 后置声明被立即回调引用; #4 FAIL = flag 无无条件复位点.
+**Mechanical verdicts**: #1 FAIL = passed non-copy straight through with the buffer reused; #2 FAIL = the watchEffect body writes a tracked ref; #3 FAIL = a later declaration referenced by an immediate callback; #4 FAIL = the flag has no unconditional reset point.
 
 ---
 
-## 验证脚本
+## Verification scripts
 
 ```bash
 #!/bin/bash
-# 合入前机械检查 (模板: 需用时整块落盘 scripts/, 命名按项目定)
+# pre-merge mechanical checks (template: write the whole block to scripts/ when needed; naming per project)
 
 set -euo pipefail
 
@@ -199,16 +199,16 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 echo "=== CR: no-silent-swallow ==="
 BARE_EXCEPT=$(grep -rnE "except\s+Exception\s*:\s*$" "${REPO_ROOT}/backend/" --include="*.py" -A1 | grep -B1 "^\s*pass\s*$" | grep -c "except" || true)
 if [ "$BARE_EXCEPT" -gt 0 ]; then
-    echo "❌ FAIL: ${BARE_EXCEPT} 处 bare except Exception: pass"
+    echo "❌ FAIL: ${BARE_EXCEPT} bare except Exception: pass"
     grep -rnE "except\s+Exception\s*:\s*$" "${REPO_ROOT}/backend/" --include="*.py" -A1 | grep -B1 "^\s*pass\s*$"
     exit 1
 fi
-echo "✅ PASS: 0 处 bare except Exception: pass"
+echo "✅ PASS: 0 bare except Exception: pass"
 
 echo "=== CR: print in prod ==="
 PRINT_PROD=$(grep -rnE "^\s*print\(" "${REPO_ROOT}/backend/" --include="*.py" | grep -v "/tests/" | grep -v "# " | wc -l || true)
 if [ "$PRINT_PROD" -gt 0 ]; then
-    echo "⚠️ WARNING: ${PRINT_PROD} 处 print 在 prod 路径"
+    echo "⚠️ WARNING: ${PRINT_PROD} print calls on prod paths"
     grep -rnE "^\s*print\(" "${REPO_ROOT}/backend/" --include="*.py" | grep -v "/tests/"
 fi
 
@@ -217,46 +217,46 @@ if command -v pyflakes &>/dev/null; then
     pyflakes "${REPO_ROOT}/backend/" 2>&1 | grep -E "undefined name" | head -10 || echo "✅ PASS: pyflakes 0 undefined"
 fi
 
-echo "=== CR: 需人工判定的 except 候选 (4 pass 条件之外) ==="
-# 找 3 行内的 except 块: 无 WARN/ERROR 日志 + 无 raise + 无 _silent_fail 的记录候选
+echo "=== CR: except candidates needing human judgment (beyond the 4 pass conditions) ==="
+# find except blocks within 3 lines: no WARN/ERROR log + no raise + no _silent_fail recording candidates
 grep -rnE "except\s+(Exception|[A-Za-z]+Error)\s*(as\s+\w+)?\s*:" "${REPO_ROOT}/backend/" --include="*.py" -A3 \
   | awk '/^[^:]+:[0-9]+[:-]except/{file=$0; body=""; n=0}
          /^[^:]+:[0-9]+[:-][[:space:]]*(pass|continue|return|#|\s*$)/{body=body" "$0; n++}
-         n>=3 && body !~ /logger\.(error|warning|exception)|raise|_silent_fail|bump_counter/{print "🔴 CANDIDATE: " file " → 检查是否 4 条件之一 (日志/raise/_silent_fail/嵌套保护)"}' || echo "✅ 无候选"
+         n>=3 && body !~ /logger\.(error|warning|exception)|raise|_silent_fail|bump_counter/{print "🔴 CANDIDATE: " file " → check against the 4 conditions (log/raise/_silent_fail/nested protection)"}' || echo "✅ no candidates"
 
-echo "=== CR: 全部通过 ==="
+echo "=== CR: all checks passed ==="
 ```
 
 ---
 
-## 与 logging-observability 的关系
+## Relationship to logging-observability
 
-> logging-observability 子工作流 (Phase 1-5) 是 "修" — 检测 + 修复吞错.
-> code review checklist 是 "防" — 合入前拦截新吞错.
+> The logging-observability sub-workflow (Phases 1-5) is "fix" — detect + repair swallowed errors.
+> The code review checklist is "prevent" — intercept new swallowed errors before merge.
 >
-> 两者互补: logging-observability 修历史欠债, code review 防新债产生.
+> The two complement each other: logging-observability pays down historical debt, code review keeps new debt from appearing.
 
 ---
 
-## 已知坑
+## Known pitfalls
 
-| 坑 | 现象 | 解决 |
+| Pitfall | Symptom | Fix |
 |---|---|---|
-| 规则太宽松 | "视情况而定" 变成 "总可以通过" | 规则必须 binary pass/fail, 不留 "视情况" |
-| 规则太多 | checklist 变成负担, 没人用 | 保持 ≤ 10 条 P0 规则, 其余 P1/P2 抽样 |
-| 机械误报 | 嵌套 try 内层有日志但被判定 FAIL | 通过条件 3 显式覆盖嵌套模式 |
-| 规则过时 | 代码演进但规则没更新 | 每次踩坑后立即更新规则 (触发更新事件) |
-| 删函数没清 `__all__` | `from ._module import *` 报 AttributeError | 删函数后 grep `__all__` 同步清理引用 |
-| 删函数没清 import 链 | A 删了但 B `from A import X` → ImportError | 删前 grep 全仓库确认 0 caller |
-| **变量/方法名遮蔽** | 同名家族 BUG: 同一变量名被两次不同来源 API 赋值, 第 2 次静默覆盖第 1 次结果 → 基于旧值的业务判断静默失效 (e.g. 账户冻结判断 3h; `import datetime` 被 `from datetime import datetime` 覆盖同族; 案例原文: arbit, projects/arbit.md) | 同一函数内**禁止同名变量被不同来源 API 二次赋值**; 第二次调用结果必须存新变量 (`balance_kc = ...`); 类型注解也救不了 (类型太宽) |
-| **shell=True 命令行拼接** | 外部数据 (用户输入/URL/标题) 拼进 `subprocess.run(f"...{data}...")` 触发 bandit B602, 等价远程代码执行 | 一律 `shell=False` + 数组传参; 真要走 shell 必走 stdin 管道 (`subprocess.run(cmd, shell=True, input="...sql...\n")`), SQL/数据走 stdin 不进命令行 |
-| **stdin 管道 + 嵌套 quote 转义** | `ssh "... mysql ... '{sql}'"` 多层引号; `-e "...{sql}..."` 中 ssh + mysql 双重吃引号; git-bash 还会再吃一层 | 三种稳定模式: ① scp SQL 文件 → remote 读 `<` 喂 mysql ② `printf sql | ssh ... mysql` (验证 ssh stdin pipe 工作) ③ heredoc 进 ssh 内 (`cat <<SQL \| mysql`); **不要在 windows 端 `-e` 拼内层双引号** |
-| **MCP 工具输出超 token 限制** | ruff_check 588KB 文本 + 1.2K 行 JSON/MD 报头直接 200K 上限炸; 报告"result exceeds maximum allowed tokens", 输出落盘 tool-results | MCP server 设计必须分流: 短结果直返, 长结果 (≥10K 行/200K 字符) 必落盘; 主 agent 不读全文, **用 python 统计规则分布 + 路径频次** 决策再定点读 |
-| **MCP server 自身接口漂移** | `mcp__python-refactor-local__bandit_scan` 走 `-f text` 失败 (bandit 1.9 已收 `-f txt`); 别的 MCP server 工具名/参数会变 | 每次 sweep 前**用 help/text 试 1 条最简调用**确认接口; 失败立即切本地 CLI (`python -m bandit -r ...`) 兜底, 别反复调 MCP 浪费时间 |
-| **进程内缓存 + 改配置不重启** | 三个 yaml loader 都 `invalidate_cache()` 但 0 处调用, 加新成员/改映射后老值在用 | (沿用"config drift"规则) 进程内 module-level dict cache 也算 config: 改完必 deploy.sh 重启; 或监听 mtime 自动 cache miss; 加 CR checklist 必查 cache 文件是否有 invalidator |
-| **Pyright pre-existing 错 vs 本次引入** | 存量项目常有大量 pre-existing Pyright 错 (副作用 import 不可解 / 未装包类型), 静默混在新错里, 难分"我引入的" (arbit 实测 39 条 pre-existing, 案例: projects/arbit.md) | 改文件前后各跑一次 `pyright_check <file>`; 改前 N 条 vs 改后 N 条, diff = 本次引入; 增量为 0 才算"零影响", 增量 > 0 必须逐条 review |
-| **Helper 类型契约 + 静默兜底** | helper 返回类型与 docstring/caller 假设不符 (返回字符串, caller 当 dict 取 key) → 静默业务错或强转崩 | helper 禁 duck-type + 静默兜底: 强制 `isinstance` + `raise TypeError` 失败路径; 或 caller 端 `isinstance(x, dict)` 防御退化; CR checklist 加 "helper 返回值类型是否在 docstring 标注" |
-| **README/docstring 写反事实** | 注释写"0=外界"实际"0=对方账号" (账号语义写反), 后续 3h 排查被误导 | 任何写"语义/枚举/常量解释"型注释前, **必 grep 真源配置文件** 一次 (`*.yaml` / DB schema / 官方 doc); CR checklist 加 "代码语义注释 vs 配置文件 抽 3 条抽校对" |
-| **`.get(k, default)` 静默兜底** | 取数源错时 `.get` 返默认值调用方不报错但行为错 (e.g. 净值取数源错返 0 → 页面显示 0 净值) | `.get(k, default)` 仅在"键确实可选"用; **必传键**应 `result[k]` 显式 KeyError 让上游立刻知道; CR 看 dict 访问区分这两类 |
+| Rules too loose | "it depends" becomes "always passes" | rules must be binary pass/fail; no "it depends" |
+| Too many rules | the checklist becomes a burden nobody uses | keep ≤ 10 P0 rules; sample the rest at P1/P2 |
+| Mechanical false positives | nested try has inner logging but is still judged FAIL | pass condition 3 explicitly covers the nested pattern |
+| Stale rules | code evolves but the rules do not | update rules immediately after every pitfall (trigger an update event) |
+| Deleting a function without cleaning `__all__` | `from ._module import *` raises AttributeError | after deleting a function, grep `__all__` and clean references in step |
+| Deleting a function without cleaning the import chain | A is deleted but B does `from A import X` → ImportError | grep the whole repo to confirm 0 callers before deleting |
+| **Variable/method name shadowing** | same-name family bug: one variable name assigned twice by APIs from different sources; the 2nd silently overwrites the 1st result → business decisions based on the stale value fail silently (e.g. the account-frozen check cost 3h; `import datetime` shadowed by `from datetime import datetime`, same family; case source: arbit, projects/arbit.md) | within one function **forbid re-assigning the same variable name from different-source APIs**; the 2nd call's result must go into a new variable (`balance_kc = ...`); type annotations do not save this (types too wide) |
+| **shell=True command-line concatenation** | external data (user input/URLs/titles) concatenated into `subprocess.run(f"...{data}...")` triggers bandit B602, equivalent to remote code execution | always `shell=False` + array args; when the shell is truly required, go through a stdin pipe (`subprocess.run(cmd, shell=True, input="...sql...\n")`) — SQL/data via stdin, never the command line |
+| **stdin pipes + nested quote escaping** | `ssh "... mysql ... '{sql}'"` stacks quote layers; in `-e "...{sql}..."` ssh and mysql each strip a layer of quotes; git-bash strips one more | three stable patterns: ① scp the SQL file → feed mysql on the remote via `<` ② `printf sql | ssh ... mysql` (verifies the ssh stdin pipe works) ③ heredoc inside ssh (`cat <<SQL \| mysql`); **never build inner double quotes into `-e` on the Windows side** |
+| **MCP tool output exceeds the token limit** | ruff_check's 588KB text + 1.2K-line JSON/MD header blows straight through the 200K cap; reports "result exceeds maximum allowed tokens", output lands in tool-results | MCP server design must split the flow: short results return directly, long results (≥10K lines / 200K chars) must land on disk; the main agent does not read the full text — **use python to tally rule distribution + path frequencies**, decide, then read targeted spots |
+| **MCP server's own interface drift** | `mcp__python-refactor-local__bandit_scan` fails with `-f text` (bandit 1.9 renamed it to `-f txt`); other MCP servers' tool names/params change too | before every sweep, **probe the interface with 1 minimal help/text call**; on failure switch immediately to the local CLI (`python -m bandit -r ...`) as fallback instead of repeatedly calling MCP and wasting time |
+| **In-process cache + config change without restart** | three yaml loaders all define `invalidate_cache()` but it is called 0 times; after adding members/changing mappings the old values stay in use | (follow the "config drift" rule) an in-process module-level dict cache also counts as config: restart via deploy.sh after every change; or watch mtime for automatic cache misses; add to the CR checklist: always check whether cache files have an invalidator |
+| **Pyright pre-existing errors vs this round's** | legacy projects often carry many pre-existing Pyright errors (unresolvable side-effect imports / types for uninstalled packages) that silently mix into new errors, making "did I introduce this" hard to tell (arbit measured 39 pre-existing; case: projects/arbit.md) | run `pyright_check <file>` once before and once after changing a file; N before vs N after, the diff = this round's additions; only a 0 delta counts as "zero impact"; a delta > 0 must be reviewed item by item |
+| **Helper type contract + silent fallback** | the helper's return type contradicts the docstring/caller assumption (returns a string, the caller indexes it as a dict) → silent business error or a cast crash | helpers must not duck-type + silently fall back: enforce `isinstance` + `raise TypeError` on the failure path; or defend at the caller with `isinstance(x, dict)` against degraded input; add to the CR checklist "is the helper's return type annotated in its docstring" |
+| **README/docstring states the reverse of reality** | a comment says "0 = external" when it actually means "0 = counterparty account" (account semantics written backwards); the next 3h of debugging gets misled | before writing any "semantics/enum/constant explanation" comment, **grep the true source config file** once (`*.yaml` / DB schema / official doc); add to the CR checklist "spot-check 3 code semantic comments against config files" |
+| **`.get(k, default)` silent fallback** | when the data source is wrong, `.get` returns the default; the caller does not error but behaves wrongly (e.g. a wrong NAV source returns 0 → the page displays a NAV of 0) | use `.get(k, default)` only where the key is genuinely optional; **required keys** should use `result[k]` so the explicit KeyError tells upstream immediately; in CR, distinguish these two kinds of dict access |
 
-> systemd restart PID 不变等全局部署坑 → 单一源 SKILL.md 已知坑表, 此处不复制.
+> Global deploy pitfalls such as systemd restart with an unchanged PID → single source, the SKILL.md known-pitfalls table; not duplicated here.

@@ -1,34 +1,34 @@
-# Directory Restructure Subflow (project-doctor 子工作流)
+# Directory Restructure Subflow (project-doctor sub-workflow)
 
-> 触发: 用户说 "目录重构" / "整理目录" / "目录清理" / "git mv 重整" / "reorganize directory" / "consolidate scripts" / "merge duplicate folder"
-> 范围: 仅目录结构 (git mv + 脚本归档 + tmp 整理), 不动代码逻辑 / 文档内容
+> Trigger: user says "directory restructure" / "organize directories" / "directory cleanup" / "git mv cleanup" / "reorganize directory" / "consolidate scripts" / "merge duplicate folder"
+> Scope: directory structure only (git mv + script archiving + tmp cleanup); do not touch code logic / document content
 
-## 目录
+## Table of contents
 
 1. [Phase 0: pre-flight](#phase-0-pre-flight)
-2. [Phase 1: 当前目录快照](#phase-1-当前目录快照--统计)
-3. [Phase 2: 脚本归类](#phase-2-脚本归类scripts)
-4. [Phase 3: 临时文件归档](#phase-3-临时文件归档tmp)
-5. [Phase 4: debug 产物清理](#phase-4-debug-产物清理)
-6. [Phase 5: 重复目录合并](#phase-5-重复目录合并)
-7. [Phase 6: 验证 + 归档旧路径](#phase-6-验证--归档旧路径)
+2. [Phase 1: Current directory snapshot + statistics](#phase-1-current-directory-snapshot--statistics)
+3. [Phase 2: Script sorting (scripts/)](#phase-2-script-sorting-scripts)
+4. [Phase 3: Temporary file archiving (tmp/)](#phase-3-temporary-file-archiving-tmp)
+5. [Phase 4: Debug artifact cleanup](#phase-4-debug-artifact-cleanup)
+6. [Phase 5: Duplicate directory merge](#phase-5-duplicate-directory-merge)
+7. [Phase 6: Verification + archiving old paths](#phase-6-verification--archiving-old-paths)
 
 ---
 
 ## 🚨 CRITICAL — Iron Law
 
-> **严禁拆一半状态 + 重构期间不可 rush hotfix.**
+> **Never leave a half-split state, and no rushed hotfixes during a restructure.**
 >
-> 拆一半状态 = 工业级灾难 (Knight Capital 2012). **任何 phase 必须闭环 (commit / revert / backup) 才能进下一个**.
+> A half-split state = industrial-scale disaster (Knight Capital 2012). **Every phase must be closed out (commit / revert / backup) before entering the next**.
 >
-> 重构期间 rush hotfix = 同样灾难 (FB BGP 2021). **不在 reorg 期间动生产 / 不打断 phase / 不混 commit**.
+> Rushing a hotfix during a restructure = the same disaster (FB BGP 2021). **No touching production during the reorg / no interrupting a phase / no mixing commits**.
 
 ---
 
 ## Phase 0: pre-flight
 
 ```bash
-# 文件备份
+# File backup
 mkdir -p ${BACKUP_ROOT}/${PROJECT_NAME}/dir-$(date -u +%Y-%m-%d)
 ${BACKUP_BIN} ${REPO_ROOT} ${BACKUP_ROOT}/${PROJECT_NAME}/dir-$(date -u +%Y-%m-%d)/
 
@@ -36,29 +36,29 @@ ${BACKUP_BIN} ${REPO_ROOT} ${BACKUP_ROOT}/${PROJECT_NAME}/dir-$(date -u +%Y-%m-%
 git tag ${SKILL_NAME}-baseline-$(date -u +%Y-%m-%d)
 ```
 
-**5 维兼顾**: 开发节奏 / 方便查找 / git 友好 / 人类观测 / 类型优先于域.
+**5 dimensions balanced**: development rhythm / findability / git friendliness / human observability / type before domain.
 
 ---
 
-## Phase 1: 当前目录快照 + 统计
+## Phase 1: Current directory snapshot + statistics
 
-**目的**: 建立 baseline, 量化"整理前".
+**Purpose**: establish a baseline, quantify the "before" state.
 
 ```bash
-# 1.1 总览 (目录数 + 文件数 + 行数)
+# 1.1 Overview (directory count + file count + line count)
 find ${REPO_ROOT} -type d -not -path '*/.git*' -not -path '*/node_modules*' -not -path '*/__pycache__*' -not -path '*/.venv*' | wc -l
 find ${REPO_ROOT} -type f -not -path '*/.git*' -not -path '*/node_modules*' | wc -l
 
-# 1.2 按扩展名统计
+# 1.2 Count by extension
 find ${REPO_ROOT} -type f -not -path '*/.git/*' | sed 's/.*\.//' | sort | uniq -c | sort -rn | head -20
 
-# 1.3 大文件 (>1MB) 列表
+# 1.3 List of large files (>1MB)
 find ${REPO_ROOT} -type f -size +1M -not -path '*/.git/*' -exec ls -lh {} \; | awk '{print $5, $NF}'
 
-# 1.4 空目录
+# 1.4 Empty directories
 find ${REPO_ROOT} -type d -empty -not -path '*/.git*'
 
-# 1.5 顶层散落脚本 (不在 ${SOURCE_DIRS} 内)
+# 1.5 Top-level scattered scripts (not inside ${SOURCE_DIRS})
 find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \) | grep -v "${SOURCE_DIRS}" | head
 ```
 
@@ -66,102 +66,102 @@ find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \) | grep -v "${SO
 
 ---
 
-## Phase 2: 脚本归类 (scripts/)
+## Phase 2: Script sorting (scripts/)
 
-**规则**:
+**Rules**:
 
-| 类型 | 路径 | 命名 |
+| Type | Path | Naming |
 |------|------|------|
-| 散落的可复用脚本 | `scripts/<category>/<name>.<ext>` | kebab-case |
-| 类别 | deploy / maintenance / cron / utils | - |
-| 一次性脚本 | `${REPO_ROOT}/.scratch/` (不入库) | - |
+| Scattered reusable scripts | `scripts/<category>/<name>.<ext>` | kebab-case |
+| Categories | deploy / maintenance / cron / utils | - |
+| One-off scripts | `${REPO_ROOT}/.scratch/` (not committed) | - |
 
-**执行**:
+**Execution**:
 
 ```bash
-# 2.1 找候选
+# 2.1 Find candidates
 find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \) | grep -v "${SOURCE_DIRS}"
 
-# 2.2 评估 + 分类
+# 2.2 Evaluate + classify
 #   deploy_*      → scripts/deploy/
 #   cron_*        → scripts/cron/
 #   cleanup_*.sh  → scripts/maintenance/
-#   其他可复用    → scripts/utils/
-#   一次性        → rm (本地留 .scratch/)
+#   other reusable → scripts/utils/
+#   one-off        → rm (keep locally in .scratch/)
 
-# 2.3 git mv (保留 history)
+# 2.3 git mv (preserve history)
 git mv ${REPO_ROOT}/rotate-logs.sh ${REPO_ROOT}/scripts/maintenance/rotate-logs.sh
 
-# 2.4 一次归类 1 commit
+# 2.4 One commit per sorting pass
 git commit -m "chore(dir): organize scripts and temp files (<date>)"
 ```
 
-**验证**:
-- `find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \)` 全部在 `${SOURCE_DIRS}` 或 `scripts/`
-- `scripts/` 无散落 (全在子目录)
+**Verification**:
+- `find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \)` — everything lands in `${SOURCE_DIRS}` or `scripts/`
+- `scripts/` has no strays (everything inside subdirectories)
 
 ---
 
-## Phase 3: 临时文件归档 (tmp/)
+## Phase 3: Temporary file archiving (tmp/)
 
-**规则**:
+**Rules**:
 
-| 类型 | 路径 | .gitignore |
+| Type | Path | .gitignore |
 |------|------|------------|
-| 运行时临时文件 | `tmp/<category>/<name>` | 是 |
-| 类别 | logs / cache / run / debug | - |
+| Runtime temp files | `tmp/<category>/<name>` | yes |
+| Categories | logs / cache / run / debug | - |
 
-**执行**:
+**Execution**:
 
 ```bash
-# 3.1 创建 tmp 结构
+# 3.1 Create the tmp structure
 mkdir -p tmp/{logs,cache,run,debug}
 
-# 3.2 移到 tmp/ + 加 .gitignore
+# 3.2 Move into tmp/ + add .gitignore
 mv *.log tmp/logs/ 2>/dev/null
 mv .cache tmp/cache/ 2>/dev/null
 echo "tmp/" >> .gitignore
 
-# 3.3 误提交的临时文件: git rm + 移到本地
+# 3.3 Temp files committed by mistake: git rm + move locally
 git rm --cached *.log 2>/dev/null
 mv *.log tmp/logs/
 
-# 3.4 一次归档 1 commit
+# 3.4 One commit per archiving pass
 git add .gitignore
 git commit -m "chore(dir): move temp files to tmp/ (<date>)"
 ```
 
-**过期清理** (Phase 4 末自动跑):
+**Expiry cleanup** (runs automatically at the end of Phase 4):
 ```bash
-# 30 天未访问的 tmp 文件
+# tmp files not accessed for 30 days
 find tmp/ -type f -atime +30 -delete
-# 空目录清理
+# empty directory cleanup
 find tmp/ -type d -empty -delete
 ```
 
 ---
 
-## Phase 4: debug 产物清理
+## Phase 4: Debug artifact cleanup
 
-**规则**:
+**Rules**:
 
-| 类型 | 处理 |
+| Type | Handling |
 |------|------|
-| 误提交 (*.debug / *.dump / *.core / *.trace / *.prof / nohup.out) | `git rm` + 加 `.gitignore` |
-| 误放在仓库内 | 移到 `tmp/debug/<date>/` |
-| 永远不入 `${SOURCE_DIRS}` / `scripts/` / `${DOCS_DIR}` | - |
+| Committed by mistake (*.debug / *.dump / *.core / *.trace / *.prof / nohup.out) | `git rm` + add to `.gitignore` |
+| Misplaced inside the repo | move to `tmp/debug/<date>/` |
+| Never enters ${SOURCE_DIRS} / `scripts/` / ${DOCS_DIR} | - |
 
-**执行**:
+**Execution**:
 
 ```bash
-# 4.1 找 debug 产物
+# 4.1 Find debug artifacts
 find ${REPO_ROOT} -type f \( -name "*.debug" -o -name "*.dump" -o -name "*.core" -o -name "*.trace" -o -name "*.prof" -o -name "nohup.out" \) -not -path '*/.git/*'
 
-# 4.2 git rm 误提交
+# 4.2 git rm the ones committed by mistake
 git rm --cached path/to/leaked.debug
 mv path/to/leaked.debug tmp/debug/
 
-# 4.3 .gitignore 加规则
+# 4.3 Add .gitignore rules
 echo -e "*.debug\n*.dump\n*.core\n*.trace\n*.prof\nnohup.out" >> .gitignore
 git add .gitignore
 git commit -m "chore(dir): clean debug artifacts + ignore (<date>)"
@@ -169,73 +169,73 @@ git commit -m "chore(dir): clean debug artifacts + ignore (<date>)"
 
 ---
 
-## Phase 5: 重复目录合并
+## Phase 5: Duplicate directory merge
 
-**场景**: 同名/相似目录树散落多处 (例: `crawler/` + `scraper/` + `spiders/` 都做爬虫)
+**Scenario**: same-named/similar directory trees scattered in several places (e.g. `crawler/` + `scraper/` + `spiders/` all do crawling)
 
-**执行**:
+**Execution**:
 
 ```bash
-# 5.1 找相似目录 (按文件特征)
+# 5.1 Find similar directories (by file traits)
 for dir in crawler scraper spiders; do
   find ${REPO_ROOT} -type d -name "$dir" -not -path '*/.git/*'
 done
 
-# 5.2 评估: 合并到 canonical 目录 or 拆分为子模块
+# 5.2 Evaluate: merge into the canonical directory or split into submodules
 
-# 5.3 git mv (保留 history) — git mv 只收 2 路径; 整目录更名才用 `git mv scraper crawler`,
-#     此处为"合并 scraper/ 全部进 crawler/": glob 展开 (crawler/ 须已存在)
-git mv scraper/* crawler/  # 合并 scraper/ 全部到 crawler/
+# 5.3 git mv (preserve history) — git mv only accepts 2 paths; use `git mv scraper crawler` only when renaming a whole directory,
+#     here we "merge everything from scraper/ into crawler/": glob expansion (crawler/ must already exist)
+git mv scraper/* crawler/  # merge everything from scraper/ into crawler/
 
-# 5.4 验证 import path 没破
+# 5.4 Verify import paths are not broken
 ${TEST_RUNNER} --collect-only
 ```
 
-**原则**: 不删 ${PROD_DIR} (prod 是 mirror), 重整在 ${REPO_ROOT} (staging) 做.
+**Principle**: do not delete ${PROD_DIR} (prod is a mirror); run the reorganization in ${REPO_ROOT} (staging).
 
 ---
 
-## Phase 6: 验证 + 归档旧路径
+## Phase 6: Verification + archiving old paths
 
-**验证**:
+**Verification**:
 
 ```bash
-# 6.1 import 不破
+# 6.1 imports not broken
 ${TEST_RUNNER} 2>&1 | tee /tmp/test_after.log
 
-# 6.2 部署脚本仍 work
+# 6.2 deploy scripts still work
 bash ${DEPLOY_SCRIPT_BACKEND} --dry-run 2>/dev/null || echo "no deploy script"
 
-# 6.3 源码树无散落脚本
+# 6.3 no scattered scripts left in the source tree
 find ${REPO_ROOT} -maxdepth 2 \( -name "*.sh" -o -name "*.py" \) | grep -v "${SOURCE_DIRS}" | grep -v "scripts/"
 
-# 6.4 tmp/ 已 .gitignore
+# 6.4 tmp/ is .gitignored
 grep -q "^tmp/$" .gitignore && echo "✓ tmp/ ignored"
 
-# 6.5 单次归档 1 commit
+# 6.5 One commit per archiving pass
 git commit -m "chore(dir): verify dir-reorg result (<date>)"
 ```
 
-**出错时回滚** (${OWNER} explicit 才跑, 三选一):
+**Rollback on failure** (runs only on explicit ${OWNER} request, pick one of three):
 ```bash
-# 1. 备份回滚 (推荐): 整目录 rsync 还原
+# 1. Backup rollback (recommended): restore the whole directory via rsync
 ${BACKUP_BIN} ${BACKUP_ROOT}/${PROJECT_NAME}/dir-<DATE>/ ${REPO_ROOT}/
 
-# 2. 单 commit 回滚: git revert (合规优先, 不丢历史)
+# 2. Single commit rollback: git revert (compliance first, no history loss)
 git revert <COMMIT_HASH> --no-edit
 
-# 3. 范围回滚
+# 3. Range rollback
 git revert <START>..HEAD --no-edit
 ```
 
-**回滚策略**: 默认 rsync 备份还原. `git revert` 用于已 commit 撤回. **绝对禁止 `git reset --hard`** (全局 CLAUDE.md 铁律).
+**Rollback policy**: default is rsync backup restore. `git revert` for undoing commits already made. **`git reset --hard` is absolutely forbidden** (global CLAUDE.md iron law).
 
-**最后手段** (必先 git tag 备份):
+**Last resort** (always git tag a backup first):
 ```bash
-# 推荐: rsync 备份还原 (无损)
+# Recommended: rsync backup restore (lossless)
 rsync -a --delete ${BACKUP_ROOT}/${PROJECT_NAME}/dir-baseline-${DATE}/ ${REPO_ROOT}/
 
-# 备选: git revert 范围撤销 (逐 commit 写反向 commit, 不丢历史)
+# Alternative: git revert range undo (writes a reverse commit per commit, no history loss)
 git tag dir-rollback-${DATE}-pre-revert
 git revert dir-baseline-${DATE}..HEAD --no-edit
 ```
