@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.7] — 2026-09-07
+
+### Changed
+- **`repo-medic-lessons` py-improve bucket**: distilled from 9 → 5 lessons per
+  user directive "扔掉那些极其罕见的case，合并重复的case，提炼还不够抽象
+  和泛化的case，最终形成一套对大多数项目质量提升都有价值的方法论".
+- **Removed** (rare or tool-specific, low cross-project value):
+  - `cross-stage-enum-sync` — merged into `handoff-receiver-pair-check` (same root cause: implicit contract)
+  - `third-party-api-params-audit` — only applies when integrating vendor paid APIs
+  - `sql-string-concat-no-inline-comments` — only applies to Python projects with hand-built SQL
+  - `ooxml-strict-mode-references` — PowerPoint-specific
+- **Rewritten** (5 lessons): each now opens with a one-sentence **Principle**,
+  then Symptom-as-pattern (multiple cases), then Fix-as-rule. Trigger-keyword
+  list trimmed to drop tool-specific terms (wait_for / pptx / notesMaster etc).
+- Net effect: bucket went from "kb-specific incident records" to "universal
+  Python quality methodology". Triggers still grep-friendly.
+
+### Rationale
+
+A lesson is worth keeping if (a) the principle applies to >50% of mature
+Python codebases, AND (b) the failure mode is non-obvious to a senior dev.
+Rare / tool-specific lessons are noise — the v0.5.5 + v0.5.6 mix had 4 that
+failed criterion (a).
+
 ## [0.5.6] — 2026-09-07
 
 ### Added

@@ -22,15 +22,11 @@ This companion skill ships lessons accumulated from real projects via `/evolve`.
 
 ### py-improve
 
-- [L1 handoff-receiver-pair-check](lessons/py-improve/handoff-receiver-pair-check.md) — any "skip because 留给 X" must verify X's claim/filter covers it; add periodic reconciliation alerts (#8 宁缺勿伪)
-- [L2 cross-stage-enum-sync](lessons/py-improve/cross-stage-enum-sync.md) — new source/status enum values must sync all stage whitelists (双向死锁 case)
-- [L3 third-party-api-params-audit](lessons/py-improve/third-party-api-params-audit.md) — every param of paid API needs official-doc audit + A/B test (#1 YAGNI)
-- [L4 sql-string-concat-no-inline-comments](lessons/py-improve/sql-string-concat-no-inline-comments.md) — Python string concat kills `--` comments; either `\n` or move comment to Python layer
-- [L9 silent-fallback-grade-not-uniform](lessons/py-improve/silent-fallback-grade-not-uniform.md) — critical deps must raise, not silently fallback; expected chains use debug logging + degrade flag (#8)
-- [L10 perf-measure-cold-and-breakdown](lessons/py-improve/perf-measure-cold-and-breakdown.md) — measure cold query separately; add per-stage timing BEFORE tuning params
+- [L1 handoff-receiver-pair-check](lessons/py-improve/handoff-receiver-pair-check.md) — implicit contracts must be made explicit; any "留给 X" must verify X's claim/filter covers it (incl. enum sync case) (#8 宁缺勿伪)
+- [L9 silent-fallback-grade-not-uniform](lessons/py-improve/silent-fallback-grade-not-uniform.md) — critical deps must raise, not silently fall back; grade by blast radius (#8)
+- [L10 perf-measure-cold-and-breakdown](lessons/py-improve/perf-measure-cold-and-breakdown.md) — cold/warm split + per-stage breakdown before tuning parameters
 - [L11 god-fn-split-requires-characterization](lessons/py-improve/god-fn-split-requires-characterization.md) — write characterization tests to lock undocumented behavior before any split (#6)
 - [L12 stale-test-vs-impl-judgment](lessons/py-improve/stale-test-vs-impl-judgment.md) — find evolution evidence first; documented evolution → fix test, undocumented drift → check git history (#8)
-- [L13 ooxml-strict-mode-references](lessons/py-improve/ooxml-strict-mode-references.md) — python-pptx can open ≠ PowerPoint can open; manual OOXML edits must check rels/Content_Types integrity (#14)
 
 ### config-base
 
@@ -48,7 +44,7 @@ This companion skill ships lessons accumulated from real projects via `/evolve`.
 
 ## Trigger keywords
 
-- **py-improve**: source whitelist / status enum / deadlock / claim / handoff / wait_for / API param audit / SQL comment / string concat / silent fallback / non-fatal except / degrade flag / cold query / per-stage timing / god function / characterization / stale test / threshold drift / evolution evidence / pptx / OOXML strict / PowerPoint / notesMaster
+- **py-improve**: handoff / 留给 / skip because / claim condition / enum value added / silent fallback / non-fatal except / degrade flag / cold query / per-stage timing / god function / characterization / stale test / threshold drift / evolution evidence
 - **config-base**: sys.path / import drift / systemctl cat / override / drop-in / credit multiplier / pricing / official docs / nohup / systemd unit / Restart=on-failure / long-lived service / pkill -f / self-match / exit 255 / llama.cpp / n_ubatch / batch size / rerank / prod-input / schema contract / switch backend / cache invalidation
 - **db-tweak**: too many clients / connection pool / failure loop / backoff / pg_stat_activity
 

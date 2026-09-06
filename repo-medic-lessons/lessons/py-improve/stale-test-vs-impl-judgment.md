@@ -1,13 +1,17 @@
-# Stale test vs impl: find evolution evidence first; documented evolution → fix test, undocumented drift → check git history
+# Stale test vs implementation drift: find evolution evidence before "fixing" either side
 
-**Symptom**: 6 tests failing (threshold 0.55 vs source 0.40, cache key missing uid, TTL 300 vs 60, old merge marker).
+**Principle**: when tests fail, neither side is automatically the truth. Implementation may have evolved intentionally (with documentation); tests may have rotted. "Fixing" the wrong side reverts to known-bad state. Find evidence chain first.
 
-**Cause**: implementation evolved intentionally (comments + work-notes documented the change) but tests weren't kept in sync; "fix the implementation" would revert to a known-bad state.
+**Symptom (any of)**:
+- 6 tests failing with threshold / cache-key / TTL / marker drift from source
+- Test "obviously wrong" but production behavior matches source (or vice versa)
+- Temptation to "just update the test" or "just update the code" without checking why
 
 **Fix**:
-- Failing test + documented evolution in source/work-note/commit → update test assertions, record the evolution history, add a regression guard
+- Failing test + documented evolution (comments / work-note / commit message) → update test assertions, record evolution history, add regression guard
 - Failing test + NO documented evolution → `git log -p` to find the change, suspect bug only if change wasn't justified
-- Never assume "test is the truth" or "impl is the truth" without checking evidence chain first
+- Never assume "test is truth" or "impl is truth" without evidence chain
+- Evolution history in test file (`# evolved 2026-XX-XX: rationale...`) prevents next-person's confusion
 
 ## Sources
 
@@ -15,7 +19,7 @@
 
 ## Frequency
 
-1 (but recurring in any long-lived codebase)
+High (any long-lived codebase accumulates test drift)
 
 ## Triggers
 
