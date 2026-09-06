@@ -70,15 +70,38 @@ def _version_tuple(s: str) -> tuple[int, ...]:
     return tuple(int(x) for x in m.group(1).split("."))
 
 
+def _resolve_cmd(cmd: list[str]) -> tuple[list[str] | str, dict]:
+    """Resolve cmd + run_kwargs for current OS.
+
+    Windows quirks handled:
+    - .cmd/.bat/.com files need shell=True (cmd.exe interprets)
+    - shutil.which may return path with .cmd extension; pass through
+    - non-UTF8 output (e.g. tree.com on Chinese Windows uses GBK):
+      use errors='replace' in subprocess.run text decode
+    """
+    if sys.platform != "win32":
+        return cmd, {}
+    exe = cmd[0]
+    resolved = shutil.which(exe) or exe
+    needs_shell = resolved.lower().endswith((".cmd", ".bat", ".com"))
+    final: list[str] | str
+    if needs_shell:
+        # shell=True requires string form
+        final = " ".join(f'"{a}"' if " " in a else a for a in cmd)
+        return final, {"shell": True, "errors": "replace"}
+    return cmd, {"errors": "replace"}
+
+
 def _check(tool: Tool) -> dict:
     """Run tool's check_cmd, return status dict."""
-    exe = tool.check_cmd[0]
+    cmd, run_kwargs = _resolve_cmd(tool.check_cmd)
+    exe = cmd[0] if isinstance(cmd, list) else cmd.split()[0].strip('"')
     if shutil.which(exe) is None:
         return {"name": tool.name, "installed": False, "version": None, "ok": False, "category": tool.category}
 
     try:
         out = subprocess.run(
-            tool.check_cmd, capture_output=True, text=True, timeout=10
+            cmd, capture_output=True, text=True, timeout=10, **run_kwargs
         )
         ver_str = (out.stdout + out.stderr).strip().split("\n")[0]
     except (subprocess.TimeoutExpired, OSError) as e:
