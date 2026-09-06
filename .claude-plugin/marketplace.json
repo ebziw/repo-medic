@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Self-contained Claude Code skill toolkit for daily code maintenance: refactoring, deduplication, silent-error scanning, directory/document reorganization, PostgreSQL tuning, Vue 3 frontend improvements, tool bootstrap, self-evolution.",
-    "version": "0.5.2"
+    "version": "0.5.3"
   },
   "plugins": [
     {

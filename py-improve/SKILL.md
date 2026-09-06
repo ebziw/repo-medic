@@ -83,7 +83,7 @@ python ~/.claude/skills/py-improve/scripts/reorg_drift.py
 3. **Default rollback = rsync backup restore** (lossless). **`git reset --hard` is absolutely forbidden**.
 4. **Dead-code proof requires the 7-step checklist**: static references + text search + framework registration + exports + dynamic calls + tests/generated code + user sign-off. 0-caller grep ≠ proof.
 5. **TDD has 4 modes by scenario**: Characterization / Red-Green / Structural (7 steps + full build/test) / Regression.
-6. **Full test suite green before every commit**; never break CI.
+6. **Full test suite green before every commit**; never break CI. **Project-level exception**: when running the suite is unsafe in this project (e.g. tests mutate prod data), the project's own rule wins — record the exception in the run report and run the safest subset that still covers the change.
 7. **Prod locked**: do not touch production code; touch it only with explicit owner authorization.
 8. **Prefer gaps over fabrication**: leave a TODO for uncertain facts; never invent. Verify with grep / codegraph / pyright against reality.
 9. **DB deletion always goes through the retirement pipeline**: RENAME before DROP → PLAN_DELETE_<original_name> → 7 days of testing → user review.

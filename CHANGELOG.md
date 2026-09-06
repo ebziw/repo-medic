@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-09-06
+
+### Fixed
+- `evolve/scripts/extract.py` — git log failure was silent (rc != 0 returned an
+  empty list with no message); now warns on stderr, and also warns when the
+  scan window yields 0 commits
+- `evolve/scripts/extract.py` — work-note field matching was too strict
+  (exact `**Symptom**:` bold labels only); now also matches `## Symptom`
+  headings and plain `Symptom:` labels; partially-documented notes become
+  candidates with gaps marked "(not documented in source note)"
+- `py-improve/scripts/silent_swallow.py` — passing a single existing `.py`
+  file reported a misleading "directory does not exist"; files are now
+  accepted alongside directories
+
+### Changed
+- `evolve` SKILL.md Phase 3: lessons dir is `git init`-ed on first run so the
+  1-lesson-1-commit gate is enforceable and lessons get history
+- `py-improve` hard constraint 6 gained a project-level exception clause
+  (when running tests is unsafe in the project, the project's own rule wins;
+  record the exception + run the safest covering subset)
+
 ## [0.5.2] — 2026-09-06
 
 ### Fixed

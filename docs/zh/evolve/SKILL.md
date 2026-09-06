@@ -41,6 +41,7 @@ self-contained skill。把"最近踩的坑"蒸馏成 SKILL.md 可注入的规则
 ### Phase 3: Inject（只做加法 — 永不改 skill 包内文件）
 
 - [ ] **lessons 目录**: 写到 `~/.claude/skills/repo-medic-lessons/lessons/<target-skill>/<topic>.md`（首次运行先建目录）。**绝不写进任何 skill 自己的目录** — skill 目录升级时整体替换，写进去的迟早丢失
+- [ ] **lessons 目录纳入版本管理**: 若 `~/.claude/skills/repo-medic-lessons/` 还不是 git 仓库，先 `git init` + 初始 commit——下面「1 lesson = 1 commit」的门禁才有落点，lesson 也有历史可回滚
 - [ ] **索引更新**: 维护 `~/.claude/skills/repo-medic-lessons/SKILL.md` — 每条 lesson 一行摘要 + 按域积累 trigger 关键词（骨架见 `templates/lessons-skill.md`）
 - [ ] **commit**: 1 commit = 1 lesson（铁律 2）
 - [ ] 🛑 **GATE**: diff 给用户看 + 用户 OK 才能 commit

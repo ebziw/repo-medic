@@ -111,7 +111,12 @@ def scan(paths: list[Path], *, filter_fp: bool = True) -> list[tuple[Path, int, 
     out: list[tuple[Path, int, str]] = []
     seen: set[tuple[Path, int]] = set()
     for root in paths:
-        for py in root.rglob("*.py"):
+        # Accept a single .py file as well as a directory (explicit file bypasses EXCLUDE_DIRS).
+        if root.is_file():
+            iterable = [root]
+        else:
+            iterable = root.rglob("*.py")
+        for py in iterable:
             if any(part in EXCLUDE_DIRS for part in py.parts):
                 continue
             try:
@@ -158,16 +163,17 @@ def main() -> int:
     given = list(args.paths) if args.paths else _detect_source_dirs()
     if given is None:
         return 1
-    # Verify each explicit/detected dir exists; missing -> WARNING + skip (still scan the rest)
+    # Verify each explicit/detected path exists; missing -> WARNING + skip (still scan the rest)
+    # Accepts directories AND single .py files.
     paths: list[Path] = []
     for p in given:
         full = REPO_ROOT / p
-        if full.is_dir():
+        if full.is_dir() or (full.is_file() and full.suffix == ".py"):
             paths.append(full)
         else:
-            print(f"WARNING: directory does not exist, skipping: {p}")
+            print(f"WARNING: path not found or not a .py file, skipping: {p}")
     if not paths:
-        print("WARNING: no valid directories to scan (all missing or detection empty), no paths scanned")
+        print("WARNING: no valid paths to scan (all missing or detection empty), no paths scanned")
         return 1
 
     filter_fp = not args.raw

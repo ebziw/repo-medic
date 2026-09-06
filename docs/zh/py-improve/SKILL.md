@@ -83,7 +83,7 @@ python ~/.claude/skills/py-improve/scripts/reorg_drift.py
 3. **默认回滚 = rsync 备份还原** (无损)。**绝对禁止 `git reset --hard`**。
 4. **死代码证明需 7 步 checklist**: 静态引用 + 文本搜索 + 框架注册 + export + 动态调用 + 测试/生成 + 用户签字。0 caller grep ≠ 证明。
 5. **TDD 按场景分 4 模式**: Characterization / Red-Green / Structural (7 步 + 全 build/test) / Regression。
-6. **commit 前全量测试全绿**，不破 CI。
+6. **commit 前全量测试全绿**，不破 CI。**项目级例外**：当本项目跑测试本身不安全时（如测试会改动生产数据），以项目自己的规则为准——在运行报告里记录该例外，并跑能覆盖本次改动的最安全子集。
 7. **prod 锁定**: 不动线上代码，owner 显式授权才动。
 8. **宁缺勿伪**: 不确定的事实留 TODO，不编。校验靠 grep / codegraph / pyright 实测。
 9. **DB 删除必走退场流水线**: DROP 前 RENAME → PLAN_DELETE_<原名> → 7 天测试 → user 审。

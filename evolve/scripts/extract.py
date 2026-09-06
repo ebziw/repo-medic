@@ -15,9 +15,36 @@ from pathlib import Path
 
 
 WORK_NOTE_FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-WORK_NOTE_SYMPTOM = re.compile(r"\*\*Symptom\*\*:\s*(.+)")
-WORK_NOTE_CAUSE = re.compile(r"\*\*Cause\*\*:\s*(.+)")
-WORK_NOTE_FIX = re.compile(r"\*\*Fix\*\*:\s*(.+)")
+
+# Work-note field matching is deliberately loose: the work-note convention asks
+# for **bold**: labels, but real notes also use headings or plain labels — and
+# a partially-documented note is still worth a candidate (gaps marked).
+FIELD_PATTERNS = {
+    "symptom": [
+        re.compile(r"\*\*Symptom\*\*:\s*(.+)"),
+        re.compile(r"^#+\s*Symptom\s*[:：]?\s*(.+)$", re.M),
+        re.compile(r"^Symptom\s*[:：]\s*(.+)$", re.M),
+    ],
+    "cause": [
+        re.compile(r"\*\*Cause\*\*:\s*(.+)"),
+        re.compile(r"^#+\s*Cause\s*[:：]?\s*(.+)$", re.M),
+        re.compile(r"^Cause\s*[:：]\s*(.+)$", re.M),
+    ],
+    "fix": [
+        re.compile(r"\*\*Fix\*\*:\s*(.+)"),
+        re.compile(r"^#+\s*Fix\s*[:：]?\s*(.+)$", re.M),
+        re.compile(r"^Fix\s*[:：]\s*(.+)$", re.M),
+    ],
+}
+_MISSING = "(not documented in source note — fill during user review)"
+
+
+def _match_field(kind: str, text: str) -> str | None:
+    for pat in FIELD_PATTERNS[kind]:
+        m = pat.search(text)
+        if m:
+            return m.group(1).strip()[:200]
+    return None
 # Functional Chinese keywords retained deliberately: they match Chinese commit
 # subjects (修复/回滚/报错...) which are common in real repos.
 COMMIT_PITFALL_KEYWORDS = (
@@ -85,7 +112,10 @@ def _git_log(repo: Path, since: str, max_commits: int) -> list[dict]:
         print(f"git log failed: {e}", file=sys.stderr)
         return []
     if out.returncode != 0:
+        print(f"WARNING: git log failed (rc={out.returncode}): {out.stderr.strip()[:200]}", file=sys.stderr)
         return []
+    if not out.stdout.strip():
+        print(f"WARNING: git log returned 0 commits for --since={since} — check the window or repo activity", file=sys.stderr)
     commits = []
     for block in out.stdout.split("--END--"):
         block = block.strip()
@@ -115,11 +145,11 @@ def _scan_work_notes(repo: Path) -> list[Lesson]:
     lessons = []
     for fp in sorted(notes_dir.glob("*.md")):
         text = fp.read_text(encoding="utf-8", errors="replace")
-        sym = WORK_NOTE_SYMPTOM.search(text)
-        cau = WORK_NOTE_CAUSE.search(text)
-        fix = WORK_NOTE_FIX.search(text)
-        if not (sym and cau and fix):
-            continue
+        sym = _match_field("symptom", text)
+        cau = _match_field("cause", text)
+        fix = _match_field("fix", text)
+        if not (sym or cau or fix):
+            continue  # no lesson-shaped content at all
         # crude tag inference from filename + content
         tag = _infer_tag(text, fp.stem)
         target = _infer_target_skill(tag)
@@ -127,12 +157,12 @@ def _scan_work_notes(repo: Path) -> list[Lesson]:
             id=f"wn_{fp.stem[:30]}_{len(lessons)}",
             tag=tag,
             target_skill=target,
-            symptom=sym.group(1).strip()[:200],
-            cause=cau.group(1).strip()[:200],
-            fix=fix.group(1).strip()[:200],
+            symptom=sym or _MISSING,
+            cause=cau or _MISSING,
+            fix=fix or _MISSING,
             frequency=1,
             sources=[f"work-note:{fp.relative_to(repo)}"],
-            confidence="med",
+            confidence="med" if (sym and cau and fix) else "low",
         ))
     return lessons
 

@@ -41,6 +41,7 @@ Self-contained skill. Distills "pitfalls hit recently" into rules injectable int
 ### Phase 3: Inject (additive only — never touch skill packages)
 
 - [ ] **Lessons dir**: write to `~/.claude/skills/repo-medic-lessons/lessons/<target-skill>/<topic>.md` (create dirs on first run). **NEVER write inside a skill's own directory** — skill directories are replaced wholesale on upgrade, and anything written there is lost
+- [ ] **Version the lessons dir**: if `~/.claude/skills/repo-medic-lessons/` is not a git repo yet, run `git init` + an initial commit — this makes the 1-lesson-1-commit gate below enforceable and gives lessons history/rollback
 - [ ] **Index update**: maintain `~/.claude/skills/repo-medic-lessons/SKILL.md` — one summary line per lesson + accumulate trigger keywords per domain (skeleton in `templates/lessons-skill.md`)
 - [ ] **Commit**: 1 commit = 1 lesson (iron rule 2)
 - [ ] 🛑 **GATE**: show the diff to the user + user OK before committing
